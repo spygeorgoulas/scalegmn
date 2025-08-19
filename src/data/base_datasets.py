@@ -5,6 +5,7 @@ import torch
 from nfn.common import state_dict_to_tensors
 from .data_utils import to_pyg_batch, get_node_types, get_edge_types, nn_to_edge_index
 from pathlib import Path
+import copy
 
 
 class Batch(NamedTuple):
@@ -94,8 +95,10 @@ class BaseDataset(torch.utils.data.Dataset, ABC):
 
     def __getitem__(self, index):
         path, aux = self.get_path(index)
+        # print(f"[Sample {index}] Loading from path: {path}")
         state_dict = torch.load(path, map_location=lambda storage, loc: storage)
         label = self.get_label(index, state_dict, aux)
+        # print(f"[Sample {index}] Loaded state_dict, label={label}")
 
         if not self.return_path:
             weights = tuple([v.permute(1, 0) for w, v in state_dict.items() if "weight" in w])

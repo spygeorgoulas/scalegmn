@@ -16,9 +16,10 @@ def get_path(path: Path, suffix: str) -> Path:
     path_parts[1] = path_parts[1] + suffix
     return Path('/'.join(path_parts))
 
-
+'''
 def store_canonicalized_params(w, b, paths, label, dataset_name):
-    sd_keys = ['seq.0.weight', 'seq.0.bias', 'seq.1.weight', 'seq.1.bias', 'seq.2.weight', 'seq.2.bias']
+    # sd_keys = ['seq.0.weight', 'seq.0.bias', 'seq.1.weight', 'seq.1.bias', 'seq.2.weight', 'seq.2.bias']
+    sd_keys = ['seq.1.weight', 'seq.1.bias', 'seq.2.weight', 'seq.2.bias']
     batch_size = w[0].shape[0]
     for datapoint in range(batch_size):
         dict_of_tensors = OrderedDict({k: [] for k in sd_keys})
@@ -34,7 +35,26 @@ def store_canonicalized_params(w, b, paths, label, dataset_name):
         target_dir = Path(new_path).parent
         target_dir.mkdir(exist_ok=True, parents=True)
         torch.save(dict_of_tensors, new_path)
+'''
 
+def store_canonicalized_params_like(data, new_W, new_b, paths, dataset_name):
+    # Try to reuse original names if available
+    orig_w_keys = [k for k in data.state_dict_keys if k.endswith('.weight')]
+    orig_b_keys = [k for k in data.state_dict_keys if k.endswith('.bias')]
+    assert len(orig_w_keys) == len(new_W) and len(orig_b_keys) == len(new_b)
+
+    batch_size = new_W[0].shape[0]
+    for dp in range(batch_size):
+        d = OrderedDict()
+        for i, k in enumerate(orig_w_keys):
+            d[k] = new_W[i][dp]
+        for i, k in enumerate(orig_b_keys):
+            d[k] = new_b[i][dp]
+        if dataset_name != 'labeled_mnist_inr':
+            d['label'] = int(data.label[dp]) if dataset_name == 'labeled_fashion_mnist_inr' else data.label[dp]
+        new_path = get_path(Path(paths[dp]), '_canon')
+        Path(new_path).parent.mkdir(exist_ok=True, parents=True)
+        torch.save(d, new_path)
 
 def canonicalization(conf, batch_size: int = 1):
     """
@@ -88,4 +108,3 @@ if __name__ == "__main__":
         conf['data']['extra_aug'] = args.extra_aug
     print(yaml.dump(conf, default_flow_style=False))
     canonicalization(conf, batch_size=args.batch_size)
-
