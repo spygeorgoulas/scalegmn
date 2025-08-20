@@ -1,4 +1,4 @@
-batch_size: 8
+batch_size: 32
 data:
   dataset: labeled_3d_inr
   dataset_path: ./data/nfn_1x128_1k_rwi_pth
@@ -8,7 +8,7 @@ data:
   switch_to_canon: False
 
 train_args:
-  num_epochs: 200 #200
+  num_epochs: 300 #200
   val_acc_threshold: 0.1
   patience: 30 #50
   seed: 0
@@ -18,7 +18,7 @@ scalegmn_args:
   d_in_v: &d_in_v 1  # initial dimension of input nn bias
   d_in_e: &d_in_e 1  # initial dimension of input nn weights
   d_hid: &d_hid 64 #64 hidden dimension
-  num_layers: 8 #4 # number of gnn layers to apply
+  num_layers: 4 # number of gnn layers to apply
   direction: forward
   equivariant: False
   symmetry: sign  # sign or permutation
@@ -61,7 +61,7 @@ scalegmn_args:
     update_node_feats_fn_layers: 1
     update_node_feats_fn_skip_connections: False
     update_edge_attr: True
-    dropout: 0.1 # 0.2
+    dropout: 0.01 # 0.2
     dropout_all: True # False  # False: only in between the gnn layers, True: + all mlp layers
     update_as_act: False
     update_as_act_arg: sum
@@ -99,8 +99,8 @@ optimization:
   clip_grad_max_norm: 10.0
   optimizer_name: AdamW
   optimizer_args:
-    lr: 2e-4 # 1e-4 #1e-3
-    weight_decay: 0.01 # 0.0005
+    lr: 0.0002
+    weight_decay: 0.00001
   scheduler_args:
     scheduler: WarmupLRScheduler
     warmup_steps: 1000

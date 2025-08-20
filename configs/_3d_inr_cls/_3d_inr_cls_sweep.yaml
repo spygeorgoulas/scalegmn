@@ -1,5 +1,9 @@
 # sweeps config file for 3d_inr_cls
 
+# ADD
+# mlp_args.layer_norm
+# node_pos_embed, edge_pos_embed
+
 program: inr_classification.py
 method: bayes # random
 metric:

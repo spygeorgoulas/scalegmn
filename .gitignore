@@ -22,3 +22,5 @@ configs/sweep_configs/
 configs/tests/
 # slurm directory
 slurm/
+
+data/
