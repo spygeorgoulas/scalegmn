@@ -8,7 +8,7 @@ data:
   switch_to_canon: False
 
 train_args:
-  num_epochs: 300 #200
+  num_epochs: 200 #200
   val_acc_threshold: 0.1
   patience: 30 #50
   seed: 0
@@ -21,7 +21,7 @@ scalegmn_args:
   num_layers: 8 #4 # number of gnn layers to apply
   direction: forward
   equivariant: False
-  symmetry: sign  # symmetry
+  symmetry: sign  # sign or permutation
   jit: False # prefer compile - compile gnn to optimize performance
   compile: True # False # compile gnn to optimize performance
 
@@ -116,4 +116,4 @@ wandb_args:
   group: null
   name: null
   tags: null
-  notes: # "INRs nfn_1x128_1k_rwi_pth, Without Phase Canonicalization, first after new branch"
+  notes: # "INRs nfn_1x128_1k_rwi_pth, Without Phase Canonicalization, scalegmn with permutation only"

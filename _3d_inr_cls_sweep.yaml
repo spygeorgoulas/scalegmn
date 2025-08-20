@@ -1,0 +1,62 @@
+# sweeps config file for 3d_inr_cls
+
+program: inr_classification.py
+method: bayes # random
+metric:
+  name: val/acc
+  goal: maximize
+parameters:
+  conf:
+    values:
+      - configs/_3d_inr_cls/scalegmn.yml
+  batch_size:
+    values:
+      - 8
+      - 16
+      - 32
+      - 64
+      - 128
+  scalegmn_args.d_hid:
+    values:
+      - 32
+      - 64
+      - 128
+      - 256
+  scalegmn_args.num_layers:
+    values:
+      - 2
+      - 4
+      - 6
+      - 7
+      - 8
+  scalegmn_args.gnn_args.dropout:
+    values:
+      - 0.01
+      - 0.15
+      - 0.25
+      - 0.35
+      - 0.50
+      - 0.80
+  optimization.optimizer_args.lr:
+    values:
+      - 1e-4
+      - 2e-4
+      - 5e-4
+      - 1e-3
+      - 5e-5
+      - 8e-4
+      - 3e-4
+      - 0.01
+      - 0.005
+      - 0.001
+  optimization.optimizer_args.weight_decay:
+    values:
+      - 0.01
+      - 0.0005
+      - 0.00025
+      - 1e-5
+      - 1e-4
+      - 1e-3
+  wandb:
+    values:
+      - True
