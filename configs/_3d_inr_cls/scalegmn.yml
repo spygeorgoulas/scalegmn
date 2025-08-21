@@ -8,7 +8,7 @@ data:
   switch_to_canon: False
 
 train_args:
-  num_epochs: 300 #200
+  num_epochs: 400 #200
   val_acc_threshold: 0.1
   patience: 30 #50
   seed: 0
@@ -116,4 +116,4 @@ wandb_args:
   group: null
   name: null
   tags: null
-  notes: # "INRs nfn_1x128_1k_rwi_pth, Without Phase Canonicalization, scalegmn with permutation only"
+  notes: # "INRs nfn_1x128_1k_rwi_pth, Without Phase Canonicalization, scalegmn with sign"

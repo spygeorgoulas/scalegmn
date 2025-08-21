@@ -1,9 +1,5 @@
 # sweeps config file for 3d_inr_cls
 
-# ADD
-# mlp_args.layer_norm
-# node_pos_embed, edge_pos_embed
-
 program: inr_classification.py
 method: bayes # random
 metric:
@@ -15,23 +11,23 @@ parameters:
       - configs/_3d_inr_cls/scalegmn.yml
   batch_size:
     values:
-      - 8
-      - 16
+      # - 8
+      # - 16
       - 32
       - 64
       - 128
   scalegmn_args.d_hid:
     values:
-      - 32
+      # - 32
       - 64
       - 128
       - 256
   scalegmn_args.num_layers:
     values:
-      - 2
+      # - 2
       - 4
       - 6
-      - 7
+      # - 7
       - 8
   scalegmn_args.gnn_args.dropout:
     values:
@@ -41,6 +37,18 @@ parameters:
       - 0.35
       - 0.50
       - 0.80
+  scalegmn_args.mlp_args.layer_norm:
+    values:
+      - True
+      - False
+  scalegmn_args.node_pos_embed:
+    values:
+      - True
+      - False
+  scalegmn_args.edge_pos_embed:
+    values:
+      - True
+      - False
   optimization.optimizer_args.lr:
     values:
       - 1e-4
