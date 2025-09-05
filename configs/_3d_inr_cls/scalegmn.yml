@@ -1,4 +1,4 @@
-batch_size: 32
+batch_size: 32 #
 data:
   dataset: labeled_3d_inr
   dataset_path: ./data/nfn_1x128_1k_rwi_pth
@@ -8,7 +8,7 @@ data:
   switch_to_canon: False
 
 train_args:
-  num_epochs: 400 #200
+  num_epochs: 2000 #200
   val_acc_threshold: 0.1
   patience: 30 #50
   seed: 0
@@ -77,7 +77,7 @@ scalegmn_args:
     pos_embed_upd: False
     layer_norm: True # False
     aggregator: add
-    sign_symmetrization: False
+    sign_symmetrization: True # False
 
   mlp_args:
     d_k: [ *d_hid ]
@@ -116,4 +116,4 @@ wandb_args:
   group: null
   name: null
   tags: null
-  notes: # "INRs nfn_1x128_1k_rwi_pth, Without Phase Canonicalization, scalegmn with sign"
+  notes: # ""
