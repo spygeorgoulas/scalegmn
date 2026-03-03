@@ -1,10 +1,10 @@
 batch_size: 32 #
 data:
   dataset: labeled_3d_inr
-  dataset_path: ./data/nfn_1x128_1k_rwi_pth
+  dataset_path: /home/intern/spygeorgoulas/thesis-metanets/scalegmn/data/bad_2x64_50_swi_pth
   node_pos_embed: &node_pos_embed True #TODO: Change to True
   edge_pos_embed: &edge_pos_embed False  #TODO
-  layer_layout: [3, 128, 1]
+  layer_layout: [3, 64, 64, 1]
   switch_to_canon: False
 
 train_args:
@@ -21,7 +21,7 @@ scalegmn_args:
   num_layers: 4 # number of gnn layers to apply
   direction: forward
   equivariant: False
-  symmetry: sign  # sign or permutation
+  symmetry: permutation  # sign or permutation
   jit: False # prefer compile - compile gnn to optimize performance
   compile: True # False # compile gnn to optimize performance
 
@@ -77,7 +77,7 @@ scalegmn_args:
     pos_embed_upd: False
     layer_norm: True # False
     aggregator: add
-    sign_symmetrization: True # False
+    sign_symmetrization: False # False
 
   mlp_args:
     d_k: [ *d_hid ]
