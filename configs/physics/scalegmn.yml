@@ -1,4 +1,4 @@
-batch_size: 1
+batch_size: 64
 
 data:
   dataset: navier_geometry_to_velocity
@@ -16,8 +16,8 @@ inr_model:
 
 train_args:
   seed: 0
-  num_epochs: 100
-  eval_every: 10 #200
+  num_epochs: 1000
+  eval_every: 50 #200
   val_acc_threshold: 0.1
   #loss: MSE #hardcoded mse
 
@@ -103,7 +103,7 @@ optimization:
     lr: 0.001
     weight_decay: 0.001
 
-num_workers: 0
+num_workers: 4
 log_n_imgs: 0
 save_best_model: true
 best_model_path: /home/intern/spygeorgoulas/thesis-metanets/scalegmn/checkpoints/best_scalegmn_navier_direct_prediction.pt
