@@ -1,4 +1,5 @@
 # python /home/intern/spygeorgoulas/thesis-metanets/scalegmn/physics_neural_operator.py --conf /home/intern/spygeorgoulas/thesis-metanets/scalegmn/configs/physics/scalegmn.yml --wandb true
+
 #!/usr/bin/env python3
 
 import os
@@ -365,22 +366,16 @@ def evaluate(
     input_layer_layout,
     output_layer_layout,
     num_batches=None,
-    eps=1e-12,
 ):
     """
-    Evaluate in function space.
-
-    Returns:
-      - avg_mse: mean pointwise MSE over the batch
-      - avg_rel_l2: mean relative L2 over samples
+    Evaluate directly in function space, not as images.
 
     pred_out: [B, P, 1]
     gt_out:   [B, P, 1]
     """
     model.eval()
 
-    mse_losses = []
-    rel_l2_losses = []
+    losses = []
 
     for i, batch in enumerate(loader):
         if num_batches is not None and i >= num_batches:
@@ -408,28 +403,17 @@ def evaluate(
             output_layout=output_layer_layout,
         )
 
-        pred_out = inr_model(pred_out_weights, pred_out_biases)  # [B,P,1]
-        gt_out = inr_model(gt_out_wb.weights, gt_out_wb.biases)  # [B,P,1]
+        pred_out = inr_model(pred_out_weights, pred_out_biases)         # [B,P,1]
+        gt_out = inr_model(gt_out_wb.weights, gt_out_wb.biases)         # [B,P,1]
 
-        # Per-sample MSE
-        mse = ((pred_out - gt_out) ** 2).mean(dim=(1, 2))  # [B]
-        mse_losses.append(mse.detach().cpu())
+        loss = ((pred_out - gt_out) ** 2).mean(dim=(1, 2))              # [B]
+        losses.append(loss.detach().cpu())
 
-        # Per-sample Relative L2
-        diff = (pred_out - gt_out).reshape(pred_out.shape[0], -1)  # [B, P*C]
-        gt = gt_out.reshape(gt_out.shape[0], -1)                   # [B, P*C]
-
-        rel_l2 = diff.norm(dim=1) / (gt.norm(dim=1) + eps)         # [B]
-        rel_l2_losses.append(rel_l2.detach().cpu())
-
-    avg_mse = torch.cat(mse_losses).mean()
-    avg_rel_l2 = torch.cat(rel_l2_losses).mean()
-
+    losses = torch.cat(losses).mean()
     model.train()
 
     return {
-        "avg_mse": avg_mse,
-        "avg_rel_l2": avg_rel_l2,
+        "avg_loss": losses,
     }
 
 
@@ -568,7 +552,6 @@ def main(args=None):
         w0_first=conf["inr_model"]["w0_first"],
     ).to(device)
 
-    # Keep training loss as MSE
     criterion = nn.MSELoss()
 
     optimizer_cls = getattr(torch.optim, conf["optimization"]["optimizer_name"])
@@ -577,14 +560,10 @@ def main(args=None):
         **conf["optimization"]["optimizer_args"],
     )
 
-    # Best model selection will follow CORAL-style reporting metric
-    best_val_rel_l2 = float("inf")
-    best_val_results = None
+    best_val_loss = float("inf")
     best_test_results = None
-
-    test_mse = -1.0
-    test_rel_l2 = -1.0
-
+    best_val_results = None
+    test_loss = -1.0
     global_step = 0
     start_epoch = 0
 
@@ -593,6 +572,7 @@ def main(args=None):
 
     epoch_iter = trange(start_epoch, conf["train_args"]["num_epochs"], desc="Epochs")
     net.train()
+    optimizer.zero_grad()
 
     for epoch in epoch_iter:
         for i, batch in enumerate(train_loader):
@@ -620,8 +600,8 @@ def main(args=None):
                 output_layout=output_layer_layout,
             )
 
-            pred_out = inr_model(pred_out_weights, pred_out_biases)  # [B,P,1]
-            gt_out = inr_model(gt_out_wb.weights, gt_out_wb.biases)  # [B,P,1]
+            pred_out = inr_model(pred_out_weights, pred_out_biases)        # [B,P,1]
+            gt_out = inr_model(gt_out_wb.weights, gt_out_wb.biases)        # [B,P,1]
 
             loss = criterion(pred_out, gt_out)
             loss.backward()
@@ -645,8 +625,7 @@ def main(args=None):
                 run.log(log, step=global_step)
 
             epoch_iter.set_description(
-                f"Epoch {epoch} | batch {i+1}/{len(train_loader)} | "
-                f"train_mse={loss.item():.4e} | test_rel_l2={test_rel_l2:.4e}"
+                f"Epoch {epoch} | batch {i+1}/{len(train_loader)} | train={loss.item():.4e} | test={test_loss:.4e}"
             )
 
             global_step += 1
@@ -680,14 +659,11 @@ def main(args=None):
                     num_batches=100,
                 )
 
-                val_mse = float(val_dict["avg_mse"])
-                val_rel_l2 = float(val_dict["avg_rel_l2"])
+                val_loss = float(val_dict["avg_loss"])
+                test_loss = float(test_dict["avg_loss"])
 
-                test_mse = float(test_dict["avg_mse"])
-                test_rel_l2 = float(test_dict["avg_rel_l2"])
-
-                if val_rel_l2 < best_val_rel_l2:
-                    best_val_rel_l2 = val_rel_l2
+                if val_loss < best_val_loss:
+                    best_val_loss = val_loss
                     best_val_results = val_dict
                     best_test_results = test_dict
 
@@ -696,7 +672,7 @@ def main(args=None):
                             {
                                 "model_state_dict": net.state_dict(),
                                 "config": conf,
-                                "best_val_rel_l2": best_val_rel_l2,
+                                "best_val_loss": best_val_loss,
                                 "global_step": global_step,
                                 "epoch": epoch,
                             },
@@ -705,15 +681,11 @@ def main(args=None):
 
                 if run is not None:
                     eval_log = {
-                        "train/avg_mse": float(train_dict["avg_mse"]),
-                        "train/avg_rel_l2": float(train_dict["avg_rel_l2"]),
-                        "val/avg_mse": val_mse,
-                        "val/avg_rel_l2": val_rel_l2,
-                        "test/avg_mse": test_mse,
-                        "test/avg_rel_l2": test_rel_l2,
-                        "val/best_rel_l2": float(best_val_results["avg_rel_l2"]),
-                        "test/best_at_best_val_rel_l2": float(best_test_results["avg_rel_l2"]),
-                        "test/best_at_best_val_mse": float(best_test_results["avg_mse"]),
+                        "train/avg_loss": float(train_dict["avg_loss"]),
+                        "val/avg_loss": val_loss,
+                        "test/avg_loss": test_loss,
+                        "val/best_loss": float(best_val_results["avg_loss"]),
+                        "test/best_at_best_val": float(best_test_results["avg_loss"]),
                         "epoch": epoch,
                         "global_step": global_step,
                     }
