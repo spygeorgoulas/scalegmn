@@ -1,6 +1,6 @@
 # python /home/intern/spygeorgoulas/thesis-metanets/scalegmn/physics_neural_operator.py --conf /home/intern/spygeorgoulas/thesis-metanets/scalegmn/configs/physics/scalegmn.yml --wandb true
-#!/usr/bin/env python3
 
+#!/usr/bin/env python3
 import os
 import re
 import yaml
@@ -411,11 +411,14 @@ def evaluate(
         pred_out = inr_model(pred_out_weights, pred_out_biases)  # [B,P,1]
         gt_out = inr_model(gt_out_wb.weights, gt_out_wb.biases)  # [B,P,1]
 
-        # Per-sample MSE
+        if not torch.isfinite(pred_out).all():
+            raise RuntimeError("Non-finite values found in pred_out during evaluation")
+        if not torch.isfinite(gt_out).all():
+            raise RuntimeError("Non-finite values found in gt_out during evaluation")
+
         mse = ((pred_out - gt_out) ** 2).mean(dim=(1, 2))  # [B]
         mse_losses.append(mse.detach().cpu())
 
-        # Per-sample Relative L2
         diff = (pred_out - gt_out).reshape(pred_out.shape[0], -1)  # [B, P*C]
         gt = gt_out.reshape(gt_out.shape[0], -1)                   # [B, P*C]
 
@@ -424,6 +427,11 @@ def evaluate(
 
     avg_mse = torch.cat(mse_losses).mean()
     avg_rel_l2 = torch.cat(rel_l2_losses).mean()
+
+    if not torch.isfinite(avg_mse):
+        raise RuntimeError("avg_mse is non-finite during evaluation")
+    if not torch.isfinite(avg_rel_l2):
+        raise RuntimeError("avg_rel_l2 is non-finite during evaluation")
 
     model.train()
 
@@ -568,7 +576,6 @@ def main(args=None):
         w0_first=conf["inr_model"]["w0_first"],
     ).to(device)
 
-    # Keep training loss as MSE
     criterion = nn.MSELoss()
 
     optimizer_cls = getattr(torch.optim, conf["optimization"]["optimizer_name"])
@@ -577,7 +584,6 @@ def main(args=None):
         **conf["optimization"]["optimizer_args"],
     )
 
-    # Best model selection will follow CORAL-style reporting metric
     best_val_rel_l2 = float("inf")
     best_val_results = None
     best_test_results = None
@@ -623,7 +629,16 @@ def main(args=None):
             pred_out = inr_model(pred_out_weights, pred_out_biases)  # [B,P,1]
             gt_out = inr_model(gt_out_wb.weights, gt_out_wb.biases)  # [B,P,1]
 
+            if not torch.isfinite(pred_out).all():
+                raise RuntimeError("Non-finite values found in pred_out during training")
+            if not torch.isfinite(gt_out).all():
+                raise RuntimeError("Non-finite values found in gt_out during training")
+
             loss = criterion(pred_out, gt_out)
+
+            if not torch.isfinite(loss):
+                raise RuntimeError(f"Non-finite loss detected during training: {loss.item()}")
+
             loss.backward()
 
             log = {
@@ -711,12 +726,15 @@ def main(args=None):
                         "val/avg_rel_l2": val_rel_l2,
                         "test/avg_mse": test_mse,
                         "test/avg_rel_l2": test_rel_l2,
-                        "val/best_rel_l2": float(best_val_results["avg_rel_l2"]),
-                        "test/best_at_best_val_rel_l2": float(best_test_results["avg_rel_l2"]),
-                        "test/best_at_best_val_mse": float(best_test_results["avg_mse"]),
                         "epoch": epoch,
                         "global_step": global_step,
                     }
+
+                    if best_val_results is not None and best_test_results is not None:
+                        eval_log["val/best_rel_l2"] = float(best_val_results["avg_rel_l2"])
+                        eval_log["test/best_at_best_val_rel_l2"] = float(best_test_results["avg_rel_l2"])
+                        eval_log["test/best_at_best_val_mse"] = float(best_test_results["avg_mse"])
+
                     run.log(eval_log, step=global_step)
 
     if run is not None:
