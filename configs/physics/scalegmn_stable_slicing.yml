@@ -17,30 +17,26 @@ inr_model:
 train_args:
   seed: 0
   num_epochs: 1000
-  eval_every: 50
-
-mlp_head:
-  hidden_dims: [32, 32]
-  activation: silu
-  dropout: 0.0
-  bias: True
+  eval_every: 50 #200
+  val_acc_threshold: 0.1
+  #loss: MSE #hardcoded mse
 
 scalegmn_args:
-  d_in_v: &d_in_v 1
-  d_in_e: &d_in_e 1
-  d_hid: &d_hid 128
-  num_layers: 4
+  d_in_v: &d_in_v 1  # initial dimension of input nn bias
+  d_in_e: &d_in_e 1  # initial dimension of input nn weights
+  d_hid: &d_hid 128  # hidden dimension
+  num_layers: 4 # number of gnn layers to apply
   direction: forward
   equivariant: True
-  symmetry: sign
-  jit: False
-  compile: False
+  symmetry: sign  # symmetry
+  jit: False # prefer compile - compile gnn to optimize performance
+  compile: False # compile gnn to optimize performance
   out_scale: 0.01
   gnn_skip_connections: True
-  concat_mlp_directions: False
+  concat_mlp_directions: False  # only for bidirectional: apply an MLP before concatenating the forward and backward directions
   reciprocal: True
-  node_pos_embed: *node_pos_embed
-  edge_pos_embed: *edge_pos_embed
+  node_pos_embed: *node_pos_embed  # use positional encodings
+  edge_pos_embed: *edge_pos_embed  # use positional encodings
 
   graph_init:
     d_in_v: *d_in_v
@@ -49,12 +45,13 @@ scalegmn_args:
     project_edge_feats: True
     d_node: *d_hid
     d_edge: *d_hid
-
+    
   positional_encodings:
     final_linear_pos_embed: False
     sum_pos_enc: False
     po_as_different_linear: False
     equiv_net: False
+    # args for the equiv net option.
     sum_on_io: True
     equiv_on_hidden: True
     num_mlps: 3
@@ -68,10 +65,11 @@ scalegmn_args:
     update_node_feats_fn_skip_connections: False
     update_edge_attr: True
     dropout: 0.1
-    dropout_all: True
+    dropout_all: True  # False: only in between the gnn layers, True: + all mlp layers
     update_as_act: False
     update_as_act_arg: sum
     mlp_on_io: True
+
     msg_equiv_on_hidden: True
     upd_equiv_on_hidden: True
     layer_msg_equiv_on_hidden: False
@@ -85,7 +83,7 @@ scalegmn_args:
     sign_symmetrization: False
 
   mlp_args:
-    d_k: [*d_hid]
+    d_k: [ *d_hid ]
     activation: silu
     dropout: 0.
     final_activation: identity
@@ -104,12 +102,11 @@ optimization:
 
 num_workers: 4
 log_n_imgs: 0
-
 save_best_model: true
-best_model_path: /home/intern/spygeorgoulas/thesis-metanets/scalegmn/checkpoints/best_scalegmn_navier_direct_prediction_with_mlp_head.pt
+best_model_path: /home/intern/spygeorgoulas/thesis-metanets/scalegmn/checkpoints/best_scalegmn_navier_direct_prediction.pt
 
 wandb: true
 wandb_args:
   project: weight_space_neural_operator_physics
   entity: mscai-spygeorgoulas
-  name: navier-geometry-to-velocity-mlp-head
+  name: navier-geometry-to-velocity-direct

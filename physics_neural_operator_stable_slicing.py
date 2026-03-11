@@ -1,7 +1,6 @@
 # python /home/intern/spygeorgoulas/thesis-metanets/scalegmn/physics_neural_operator.py --conf /home/intern/spygeorgoulas/thesis-metanets/scalegmn/configs/physics/scalegmn.yml --wandb true
 
 #!/usr/bin/env python3
-
 import os
 import re
 import yaml
@@ -27,7 +26,6 @@ os.environ.pop("WANDB_MODE", None)
 # ============================================================================================
 # HELPERS
 # ============================================================================================
-
 def parse_sample_idx_from_path(path_str: str) -> int:
     m = re.search(r"inr_(\d+)\.pth$", str(path_str))
     if m is None:
@@ -45,8 +43,8 @@ def make_ref_grid(H: int, W: int) -> torch.Tensor:
 def state_dict_to_weight_bias_tuples(state_dict: dict):
     """
     Converts linear-only INR state_dict to:
-      weights[l] : [in_dim, out_dim, 1]
-      biases[l]  : [out_dim, 1]
+        weights[l] : [in_dim, out_dim, 1]
+        biases[l]  : [out_dim, 1]
     """
     weight_items = []
     bias_items = []
@@ -78,137 +76,50 @@ def batch_to_device_namedtuple(wb: Batch, device):
 def make_zero_wb_from_layout(batch_size: int, layer_layout, device):
     """
     Creates zero weights/biases for a given MLP layout.
-    Example: [2, 64, 64, 2] gives:
-      weights: [B,2,64,1], [B,64,64,1], [B,64,2,1]
-      biases : [B,64,1], [B,64,1], [B,2,1]
+
+    Example:
+        [2, 64, 64, 2]
+    gives:
+        weights: [B,2,64,1], [B,64,64,1], [B,64,2,1]
+        biases : [B,64,1],   [B,64,1],    [B,2,1]
     """
     weights = []
     biases = []
-
     for in_dim, out_dim in zip(layer_layout[:-1], layer_layout[1:]):
         w = torch.zeros(batch_size, in_dim, out_dim, 1, device=device)
         b = torch.zeros(batch_size, out_dim, 1, device=device)
         weights.append(w)
         biases.append(b)
-
     return weights, biases
 
 
-# ============================================================================================
-# LEARNED FINAL-LAYER MLP HEAD
-# ============================================================================================
-
-class FinalLayerMLPHead(nn.Module):
-    """
-    Learns a mapping from the final-layer output dimension of the input INR
-    to the final-layer output dimension of the output INR.
-
-    Example:
-      input final layer weight: [B, hidden_dim, 2, 1]
-      output final layer weight: [B, hidden_dim, 1, 1]
-
-    The same shared MLP is applied row-wise to the last dimension.
-    Also applied to the final bias.
-    """
-
-    def __init__(
-        self,
-        in_dim: int,
-        out_dim: int,
-        hidden_dims=None,
-        activation: str = "silu",
-        dropout: float = 0.0,
-        bias: bool = True,
-    ):
-        super().__init__()
-
-        if hidden_dims is None:
-            hidden_dims = []
-
-        layers = []
-        prev_dim = in_dim
-
-        for h in hidden_dims:
-            layers.append(nn.Linear(prev_dim, h, bias=bias))
-            layers.append(self._get_activation(activation))
-            if dropout > 0:
-                layers.append(nn.Dropout(dropout))
-            prev_dim = h
-
-        layers.append(nn.Linear(prev_dim, out_dim, bias=bias))
-        self.net = nn.Sequential(*layers)
-
-    @staticmethod
-    def _get_activation(name: str):
-        name = name.lower()
-        if name == "relu":
-            return nn.ReLU()
-        if name == "gelu":
-            return nn.GELU()
-        if name == "silu":
-            return nn.SiLU()
-        if name == "tanh":
-            return nn.Tanh()
-        if name == "identity":
-            return nn.Identity()
-        raise ValueError(f"Unsupported activation for FinalLayerMLPHead: {name}")
-
-    def forward_weight(self, w: torch.Tensor) -> torch.Tensor:
-        """
-        w: [B, in_dim_last_hidden, in_dim_last_out, 1]
-        returns: [B, in_dim_last_hidden, out_dim_last_out, 1]
-        """
-        if w.dim() != 4:
-            raise ValueError(f"Expected weight tensor of shape [B,H,C,1], got {w.shape}")
-
-        x = w.squeeze(-1)              # [B, H, Cin]
-        B, H, Cin = x.shape
-        x = x.reshape(B * H, Cin)      # [B*H, Cin]
-        x = self.net(x)                # [B*H, Cout]
-        x = x.reshape(B, H, -1)        # [B, H, Cout]
-        x = x.unsqueeze(-1)            # [B, H, Cout, 1]
-        return x
-
-    def forward_bias(self, b: torch.Tensor) -> torch.Tensor:
-        """
-        b: [B, in_dim_last_out, 1]
-        returns: [B, out_dim_last_out, 1]
-        """
-        if b.dim() != 3:
-            raise ValueError(f"Expected bias tensor of shape [B,C,1], got {b.shape}")
-
-        x = b.squeeze(-1)              # [B, Cin]
-        x = self.net(x)                # [B, Cout]
-        x = x.unsqueeze(-1)            # [B, Cout, 1]
-        return x
-
-
-def apply_mlp_head_to_predicted_inr(
+def project_input_layout_prediction_to_output_layout(
     pred_weights,
     pred_biases,
     input_layout,
     output_layout,
-    final_layer_head: FinalLayerMLPHead,
 ):
     """
-    Keeps all shared layers unchanged.
-    Replaces only the final layer using a learned MLP head.
+    ScaleGMN predicts tensors in INPUT topology.
+    We externally project them to OUTPUT topology.
 
     Example:
-      input_layout  = [2, 64, 64, 2]
-      output_layout = [2, 64, 64, 1]
-    """
+        input_layout  = [2, 64, 64, 2]
+        output_layout = [2, 64, 64, 1]
 
+    Strategy:
+      - keep shared layers unchanged
+      - slice the final layer output dimension from 2 -> 1
+    """
     if len(input_layout) != len(output_layout):
         raise ValueError(
-            f"Different number of layers in input/output layouts: "
-            f"{input_layout} vs {output_layout}"
+            f"Different number of layers in input/output layouts: {input_layout} vs {output_layout}"
         )
 
-    num_layers = len(input_layout) - 1
     out_weights = []
     out_biases = []
 
+    num_layers = len(input_layout) - 1
     for l in range(num_layers):
         in_in = input_layout[l]
         in_out = input_layout[l + 1]
@@ -228,26 +139,14 @@ def apply_mlp_head_to_predicted_inr(
             out_biases.append(b)
         else:
             if in_in != out_in:
+                raise ValueError(f"Final layer input dim mismatch: {in_in} vs {out_in}")
+            if out_out > in_out:
                 raise ValueError(
-                    f"Final layer input dim mismatch: input {in_in} vs output {out_in}"
+                    f"Cannot expand final output dim by slicing: input {in_out}, output {out_out}"
                 )
 
-            transformed_w = final_layer_head.forward_weight(w)
-            transformed_b = final_layer_head.forward_bias(b)
-
-            if transformed_w.shape[2] != out_out:
-                raise RuntimeError(
-                    f"MLP head produced wrong final weight out dim: "
-                    f"{transformed_w.shape[2]} vs expected {out_out}"
-                )
-            if transformed_b.shape[1] != out_out:
-                raise RuntimeError(
-                    f"MLP head produced wrong final bias out dim: "
-                    f"{transformed_b.shape[1]} vs expected {out_out}"
-                )
-
-            out_weights.append(transformed_w)
-            out_biases.append(transformed_b)
+            out_weights.append(w[:, :, :out_out, :])  # [B, in_dim, out_out, 1]
+            out_biases.append(b[:, :out_out, :])      # [B, out_out, 1]
 
     return out_weights, out_biases
 
@@ -255,7 +154,6 @@ def apply_mlp_head_to_predicted_inr(
 # ============================================================================================
 # INPUT GRAPH DATASET
 # ============================================================================================
-
 class NavierGeometryINRDataset(BaseDataset):
     """
     Dataset for Navier geometry INRs stored as .pth files.
@@ -295,6 +193,7 @@ class NavierGeometryINRDataset(BaseDataset):
             data_format=data_format,
             switch_to_canon=switch_to_canon,
         )
+
         if debug:
             self.dataset = self.dataset[:16]
 
@@ -333,17 +232,16 @@ class NavierGeometryINRDataset(BaseDataset):
 # ============================================================================================
 # INR INFERENCE ON FIXED REFERENCE GRID
 # ============================================================================================
-
 class BatchSirenLinearOnlyRefGrid(nn.Module):
     """
     Evaluates linear-only SIREN INRs on the fixed normalized reference grid.
 
     Input:
-      weights[l]: [B, in_dim, out_dim, 1]
-      biases[l]:  [B, out_dim, 1]
+        weights[l]: [B, in_dim, out_dim, 1]
+        biases[l]:  [B, out_dim, 1]
 
     Output:
-      [B, P, out_dim_last]
+        [B, P, out_dim_last]
     """
 
     def __init__(self, image_size=(129, 129), w0=30.0, w0_first=30.0):
@@ -377,7 +275,6 @@ class BatchSirenLinearOnlyRefGrid(nn.Module):
 # ============================================================================================
 # PAIRED DATASET
 # ============================================================================================
-
 class PairedNavierINRPredictionDataset(torch.utils.data.Dataset):
     """
     Uses:
@@ -424,6 +321,7 @@ class PairedNavierINRPredictionDataset(torch.utils.data.Dataset):
             data_format="graph",
             switch_to_canon=False,
         )
+
         self.output_inr_dir = output_inr_dir
 
     def __len__(self):
@@ -434,8 +332,8 @@ class PairedNavierINRPredictionDataset(torch.utils.data.Dataset):
 
     def __getitem__(self, index):
         params = self.input_graph_ds[index]
-        rel_path = self.input_graph_ds.dataset[index]
 
+        rel_path = self.input_graph_ds.dataset[index]
         input_abs_path = Path(self.input_graph_ds.dataset_path) / rel_path
         output_abs_path = Path(self.output_inr_dir) / rel_path
 
@@ -446,7 +344,6 @@ class PairedNavierINRPredictionDataset(torch.utils.data.Dataset):
 
         out_sd = torch.load(output_abs_path, map_location="cpu")
         gt_weights, gt_biases = state_dict_to_weight_bias_tuples(out_sd)
-
         gt_out_wb = Batch(
             weights=gt_weights,
             biases=gt_biases,
@@ -459,11 +356,9 @@ class PairedNavierINRPredictionDataset(torch.utils.data.Dataset):
 # ============================================================================================
 # EVALUATION
 # ============================================================================================
-
 @torch.no_grad()
 def evaluate(
     model,
-    mlp_head,
     loader,
     device,
     inr_model,
@@ -478,9 +373,11 @@ def evaluate(
     Returns:
       - avg_mse: mean pointwise MSE over the batch
       - avg_rel_l2: mean relative L2 over samples
+
+    pred_out: [B, P, 1]
+    gt_out:   [B, P, 1]
     """
     model.eval()
-    mlp_head.eval()
 
     mse_losses = []
     rel_l2_losses = []
@@ -490,6 +387,7 @@ def evaluate(
             break
 
         params, gt_out_wb, sample_idx = batch
+
         params = params.to(device)
         gt_out_wb = batch_to_device_namedtuple(gt_out_wb, device)
 
@@ -503,16 +401,15 @@ def evaluate(
 
         pred_in_weights, pred_in_biases = model(params, zero_in_weights, zero_in_biases)
 
-        pred_out_weights, pred_out_biases = apply_mlp_head_to_predicted_inr(
-            pred_weights=pred_in_weights,
-            pred_biases=pred_in_biases,
+        pred_out_weights, pred_out_biases = project_input_layout_prediction_to_output_layout(
+            pred_in_weights,
+            pred_in_biases,
             input_layout=input_layer_layout,
             output_layout=output_layer_layout,
-            final_layer_head=mlp_head,
         )
 
-        pred_out = inr_model(pred_out_weights, pred_out_biases)   # [B,P,1]
-        gt_out = inr_model(gt_out_wb.weights, gt_out_wb.biases)   # [B,P,1]
+        pred_out = inr_model(pred_out_weights, pred_out_biases)  # [B,P,1]
+        gt_out = inr_model(gt_out_wb.weights, gt_out_wb.biases)  # [B,P,1]
 
         if not torch.isfinite(pred_out).all():
             raise RuntimeError("Non-finite values found in pred_out during evaluation")
@@ -524,6 +421,7 @@ def evaluate(
 
         diff = (pred_out - gt_out).reshape(pred_out.shape[0], -1)  # [B, P*C]
         gt = gt_out.reshape(gt_out.shape[0], -1)                   # [B, P*C]
+
         rel_l2 = diff.norm(dim=1) / (gt.norm(dim=1) + eps)         # [B]
         rel_l2_losses.append(rel_l2.detach().cpu())
 
@@ -536,7 +434,6 @@ def evaluate(
         raise RuntimeError("avg_rel_l2 is non-finite during evaluation")
 
     model.train()
-    mlp_head.train()
 
     return {
         "avg_mse": avg_mse,
@@ -547,13 +444,11 @@ def evaluate(
 # ============================================================================================
 # TRAINING
 # ============================================================================================
-
 def main(args=None):
     conf = yaml.safe_load(open(args.conf))
     conf = overwrite_conf(conf, vars(args))
 
     torch.set_float32_matmul_precision("high")
-
     print(yaml.dump(conf, default_flow_style=False), flush=True)
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -573,6 +468,7 @@ def main(args=None):
         print("W&B run URL:", run.url, flush=True)
         print("W&B mode:", run.settings.mode, flush=True)
         print("W&B name:", run.name, flush=True)
+
         wandb.define_metric("global_step")
         wandb.define_metric("*", step_metric="global_step")
 
@@ -635,8 +531,8 @@ def main(args=None):
     conf["scalegmn_args"]["layer_layout"] = train_set.get_layer_layout()
 
     print(f"Len train set: {len(train_set)}", flush=True)
-    print(f"Len val set: {len(val_set)}", flush=True)
-    print(f"Len test set: {len(test_set)}", flush=True)
+    print(f"Len val set:   {len(val_set)}", flush=True)
+    print(f"Len test set:  {len(test_set)}", flush=True)
 
     train_loader = torch_geometric.loader.DataLoader(
         dataset=train_set,
@@ -665,39 +561,13 @@ def main(args=None):
     net = ScaleGMN_equiv(conf["scalegmn_args"]).to(device)
     print(net, flush=True)
 
-    mlp_head = FinalLayerMLPHead(
-        in_dim=input_layer_layout[-1],
-        out_dim=output_layer_layout[-1],
-        hidden_dims=conf["mlp_head"]["hidden_dims"],
-        activation=conf["mlp_head"]["activation"],
-        dropout=conf["mlp_head"]["dropout"],
-        bias=conf["mlp_head"]["bias"],
-    ).to(device)
-
-    print(mlp_head, flush=True)
-
-    cnt_p_net = count_parameters(net=net)
-    cnt_p_head = sum(p.numel() for p in mlp_head.parameters() if p.requires_grad)
-    cnt_p_total = cnt_p_net + cnt_p_head
-
-    print(f"ScaleGMN params: {cnt_p_net:,}", flush=True)
-    print(f"MLP head params: {cnt_p_head:,}", flush=True)
-    print(f"Total params: {cnt_p_total:,}", flush=True)
+    cnt_p = count_parameters(net=net)
+    print(f"net params: {cnt_p:,}", flush=True)
 
     if run is not None:
-        run.log(
-            {
-                "number_of_parameters/scalegmn": cnt_p_net,
-                "number_of_parameters/mlp_head": cnt_p_head,
-                "number_of_parameters/total": cnt_p_total,
-                "global_step": 0,
-            },
-            step=0,
-        )
+        run.log({"number of parameters": cnt_p, "global_step": 0}, step=0)
 
     for p in net.parameters():
-        p.requires_grad = True
-    for p in mlp_head.parameters():
         p.requires_grad = True
 
     inr_model = BatchSirenLinearOnlyRefGrid(
@@ -710,33 +580,30 @@ def main(args=None):
 
     optimizer_cls = getattr(torch.optim, conf["optimization"]["optimizer_name"])
     optimizer = optimizer_cls(
-        [p for p in net.parameters() if p.requires_grad] +
-        [p for p in mlp_head.parameters() if p.requires_grad],
+        [p for p in net.parameters() if p.requires_grad],
         **conf["optimization"]["optimizer_args"],
     )
 
     best_val_rel_l2 = float("inf")
     best_val_results = None
     best_test_results = None
+
     test_mse = -1.0
     test_rel_l2 = -1.0
+
     global_step = 0
     start_epoch = 0
 
     save_best_model = conf.get("save_best_model", False)
-    best_model_path = conf.get(
-        "best_model_path",
-        "best_scalegmn_navier_direct_prediction_with_mlp_head.pt"
-    )
+    best_model_path = conf.get("best_model_path", "best_scalegmn_navier_direct_prediction.pt")
 
     epoch_iter = trange(start_epoch, conf["train_args"]["num_epochs"], desc="Epochs")
-
     net.train()
-    mlp_head.train()
 
     for epoch in epoch_iter:
         for i, batch in enumerate(train_loader):
             params, gt_out_wb, sample_idx = batch
+
             params = params.to(device)
             gt_out_wb = batch_to_device_namedtuple(gt_out_wb, device)
 
@@ -752,12 +619,11 @@ def main(args=None):
 
             pred_in_weights, pred_in_biases = net(params, zero_in_weights, zero_in_biases)
 
-            pred_out_weights, pred_out_biases = apply_mlp_head_to_predicted_inr(
-                pred_weights=pred_in_weights,
-                pred_biases=pred_in_biases,
+            pred_out_weights, pred_out_biases = project_input_layout_prediction_to_output_layout(
+                pred_in_weights,
+                pred_in_biases,
                 input_layout=input_layer_layout,
                 output_layout=output_layer_layout,
-                final_layer_head=mlp_head,
             )
 
             pred_out = inr_model(pred_out_weights, pred_out_biases)  # [B,P,1]
@@ -783,8 +649,7 @@ def main(args=None):
 
             if conf["optimization"].get("clip_grad", False):
                 grad_norm = torch.nn.utils.clip_grad_norm_(
-                    [p for p in net.parameters() if p.requires_grad] +
-                    [p for p in mlp_head.parameters() if p.requires_grad],
+                    [p for p in net.parameters() if p.requires_grad],
                     conf["optimization"]["clip_grad_max_norm"],
                 )
                 log["grad_norm"] = grad_norm.item() if torch.is_tensor(grad_norm) else grad_norm
@@ -804,7 +669,6 @@ def main(args=None):
             if global_step > 0 and (global_step % conf["train_args"]["eval_every"] == 0):
                 val_dict = evaluate(
                     net,
-                    mlp_head,
                     val_loader,
                     device,
                     inr_model,
@@ -814,7 +678,6 @@ def main(args=None):
 
                 test_dict = evaluate(
                     net,
-                    mlp_head,
                     test_loader,
                     device,
                     inr_model,
@@ -824,7 +687,6 @@ def main(args=None):
 
                 train_dict = evaluate(
                     net,
-                    mlp_head,
                     train_loader,
                     device,
                     inr_model,
@@ -835,6 +697,7 @@ def main(args=None):
 
                 val_mse = float(val_dict["avg_mse"])
                 val_rel_l2 = float(val_dict["avg_rel_l2"])
+
                 test_mse = float(test_dict["avg_mse"])
                 test_rel_l2 = float(test_dict["avg_rel_l2"])
 
@@ -847,7 +710,6 @@ def main(args=None):
                         torch.save(
                             {
                                 "model_state_dict": net.state_dict(),
-                                "mlp_head_state_dict": mlp_head.state_dict(),
                                 "config": conf,
                                 "best_val_rel_l2": best_val_rel_l2,
                                 "global_step": global_step,
