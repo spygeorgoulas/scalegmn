@@ -1,9 +1,9 @@
 # command trick for patience spyros
-#WANDB_AGENT_MAX_INITIAL_FAILURES=1000 wandb agent mscai-spygeorgoulas/weight_space_neural_operator_physics/7asvxt7h
+#WANDB_AGENT_MAX_INITIAL_FAILURES=1000 wandb agent mscai-spygeorgoulas/weight_space_neural_operator_physics/p2o623r1
 
 # sweep config file for navier geometry -> velocity INR prediction with ScaleGMN
 
-program: physics_neural_operator_slicing.py
+program: physics_neural_operator_linear_proj.py
 method: random
 
 metric:
@@ -13,7 +13,7 @@ metric:
 parameters:
   conf:
     values:
-      - configs/physics/scalegmn_slicing.yml
+      - configs/physics/scalegmn_linear_proj.yml
 
   batch_size:
     values:
@@ -33,25 +33,25 @@ parameters:
     values:
       #- 3
       - 4
-      - 5
-      #- 10
+      - 6
+      - 8
 
   scalegmn_args.gnn_args.dropout:
     values:
       - 0.01
       #- 0.001
-      - 0.1
+      #- 0.1
 
   optimization.optimizer_args.lr:
     values:
       #- 2e-4
-      - 5e-4
-      - 1e-3
+      #- 5e-4
+      #- 1e-3
       - 1e-4
 
   optimization.optimizer_args.weight_decay:
     values:
-      - 1e-5
+      - 1e-3
     
   wandb:
     values:

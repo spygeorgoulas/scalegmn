@@ -10,6 +10,9 @@ data:
   node_pos_embed: &node_pos_embed True
   edge_pos_embed: &edge_pos_embed False
 
+projection_head:
+  mode: linear
+
 inr_model:
   w0: 30.0
   w0_first: 30.0
