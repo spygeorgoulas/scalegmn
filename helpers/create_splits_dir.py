@@ -3,23 +3,23 @@ import shutil
 
 # ====== SET THESE PATHS ======
 src_dir = Path("/home/intern/spygeorgoulas/thesis-metanets/scalegmn/data/navier_pipe_geometry_2x64_2k_rwi_pth_linearonly")
-dst_dir = Path("/home/intern/spygeorgoulas/thesis-metanets/scalegmn/data/navier_pipe_geometry_2x64_2k_rwi_pth_linearonly_splitted")
+dst_dir = Path("/home/intern/spygeorgoulas/thesis-metanets/scalegmn/data/navier_h_velocity_2x64_2k_rwi_pth_linearonly_splitted_all")
 # =============================
 
 # get all .pth files in sorted order
 pth_files = sorted(src_dir.glob("*.pth"))
 
 # keep only the first 1200
-pth_files = pth_files[:1200]
+pth_files = pth_files[:2310]
 
 # sanity check
-if len(pth_files) < 1200:
-    raise ValueError(f"Found only {len(pth_files)} .pth files, but need at least 1200.")
+if len(pth_files) < 2310:
+    raise ValueError(f"Found only {len(pth_files)} .pth files, but need at least 2310.")
 
 # define splits
-train_files = pth_files[:1000]
-val_files = pth_files[1000:1100]
-test_files = pth_files[1100:1200]
+train_files = pth_files[:1900]
+val_files = pth_files[1900:2160]
+test_files = pth_files[2160:2310]
 
 # create folders
 train_dir = dst_dir / "train"
