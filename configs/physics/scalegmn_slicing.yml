@@ -2,8 +2,8 @@ batch_size: 64
 
 data:
   dataset: navier_geometry_to_velocity
-  input_inr_dir: /home/intern/spygeorgoulas/thesis-metanets/scalegmn/data/navier_pipe_geometry_2x64_2k_rwi_pth_linearonly_splitted
-  output_inr_dir: /home/intern/spygeorgoulas/thesis-metanets/scalegmn/data/navier_h_velocity_2x64_2k_rwi_pth_parallel_linearonly_splitted
+  input_inr_dir: /home/intern/spygeorgoulas/thesis-metanets/scalegmn/data/navier_pipe_geometry_2x64_2k_rwi_pth_linearonly_splitted_all
+  output_inr_dir: /home/intern/spygeorgoulas/thesis-metanets/scalegmn/data/navier_h_velocity_2x64_2k_rwi_pth_parallel_linearonly_splitted_all
   image_size: [129, 129]
   input_layer_layout: [2, 64, 64, 2]
   output_layer_layout: [2, 64, 64, 1]
@@ -16,8 +16,8 @@ inr_model:
 
 train_args:
   seed: 0
-  num_epochs: 5000
-  eval_every: 200
+  num_epochs: 20000
+  eval_every: 500
   val_acc_threshold: 0.1
   #loss: MSE #hardcoded mse
 
@@ -26,7 +26,7 @@ scalegmn_args:
   d_in_e: &d_in_e 1  # initial dimension of input nn weights
   d_hid: &d_hid 128  # hidden dimension
   num_layers: 4 # number of gnn layers to apply
-  direction: forward
+  direction: bidirectional #forward
   equivariant: True
   symmetry: sign  # symmetry
   jit: False # prefer compile - compile gnn to optimize performance
