@@ -2,7 +2,7 @@ from pathlib import Path
 import shutil
 
 # ====== SET THESE PATHS ======
-src_dir = Path("/home/intern/spygeorgoulas/thesis-metanets/scalegmn/data/navier_pipe_geometry_2x64_2k_rwi_pth_linearonly")
+src_dir = Path("/home/intern/spygeorgoulas/thesis-metanets/scalegmn/data/navier_h_velocity_2x64_2k_rwi_pth_parallel_linearonly")
 dst_dir = Path("/home/intern/spygeorgoulas/thesis-metanets/scalegmn/data/navier_h_velocity_2x64_2k_rwi_pth_parallel_linearonly_splitted_all")
 # =============================
 
