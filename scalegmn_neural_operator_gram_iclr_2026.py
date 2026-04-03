@@ -1,5 +1,3 @@
-# 
-
 #!/usr/bin/env python3
 
 import os
@@ -17,7 +15,6 @@ import wandb
 from src.data import dataset
 from src.utils.setup_arg_parser import setup_arg_parser
 from src.scalegmn.models import ScaleGMN_equiv
-from src.utils.optim import setup_optimization
 from src.utils.helpers import (
     overwrite_conf,
     count_parameters,
@@ -291,6 +288,31 @@ def unpack_batch_with_paths(batch):
     return params, w_b, label, paths
 
 
+def save_best_model_checkpoint(
+    model,
+    path,
+    epoch,
+    global_step,
+    best_val_results,
+    best_test_results,
+    conf,
+):
+    path = Path(path)
+    path.parent.mkdir(parents=True, exist_ok=True)
+
+    ckpt = {
+        "model_state_dict": model.state_dict(),
+        "epoch": epoch,
+        "global_step": global_step,
+        "best_val_mse": float(best_val_results["avg_mse"]),
+        "best_val_relative_l2": float(best_val_results["avg_relative_l2"]),
+        "test_mse_at_best_val": float(best_test_results["avg_mse"]),
+        "test_relative_l2_at_best_val": float(best_test_results["avg_relative_l2"]),
+        "config": conf,
+    }
+    torch.save(ckpt, path)
+
+
 # ============================================================
 # Main
 # ============================================================
@@ -319,7 +341,7 @@ def main(args=None):
     train_set = dataset(
         conf["data"],
         split="train",
-        debug=conf["debug"],
+        debug=conf.get("debug", False),
         direction=conf["scalegmn_args"]["direction"],
         equiv_on_hidden=equiv_on_hidden,
         get_first_layer_mask=get_first_layer_mask,
@@ -329,7 +351,7 @@ def main(args=None):
     val_set = dataset(
         conf["data"],
         split="val",
-        debug=conf["debug"],
+        debug=conf.get("debug", False),
         direction=conf["scalegmn_args"]["direction"],
         equiv_on_hidden=equiv_on_hidden,
         get_first_layer_mask=get_first_layer_mask,
@@ -338,7 +360,7 @@ def main(args=None):
     test_set = dataset(
         conf["data"],
         split="test",
-        debug=conf["debug"],
+        debug=conf.get("debug", False),
         direction=conf["scalegmn_args"]["direction"],
         equiv_on_hidden=equiv_on_hidden,
         get_first_layer_mask=get_first_layer_mask,
@@ -387,18 +409,26 @@ def main(args=None):
         p.requires_grad = True
 
     # ============================================================
-    # Optimization
+    # Optimization (NO scheduler)
     # ============================================================
     criterion = nn.MSELoss()
 
     conf_opt = conf["optimization"]
     model_params = [p for p in net.parameters() if p.requires_grad]
-    optimizer, scheduler = setup_optimization(
-        model_params,
-        optimizer_name=conf_opt["optimizer_name"],
-        optimizer_args=conf_opt["optimizer_args"],
-        scheduler_args=conf_opt["scheduler_args"],
-    )
+
+    optimizer_name = conf_opt["optimizer_name"].lower()
+    optimizer_args = conf_opt["optimizer_args"]
+
+    if optimizer_name == "adamw":
+        optimizer = torch.optim.AdamW(model_params, **optimizer_args)
+    elif optimizer_name == "adam":
+        optimizer = torch.optim.Adam(model_params, **optimizer_args)
+    elif optimizer_name == "sgd":
+        optimizer = torch.optim.SGD(model_params, **optimizer_args)
+    else:
+        raise ValueError(f"Unsupported optimizer_name: {conf_opt['optimizer_name']}")
+
+    scheduler = None
 
     # ============================================================
     # Training loop
@@ -406,12 +436,18 @@ def main(args=None):
     best_val_mse = float("inf")
     best_val_results = None
     best_test_results = None
+    best_epoch = -1
+    best_step = -1
+
     test_mse_scalar = -1.0
     global_step = 0
 
     source_npz_dir = conf["data"]["source_npz_dir"]
     num_query_points = conf["train_args"]["num_query_points"]
     query_eval_chunk_size = conf["train_args"].get("query_eval_chunk_size", 16384)
+
+    save_best_model = conf.get("save_best_model", False)
+    best_model_path = conf.get("best_model_path", None)
 
     epoch_iter = trange(conf["train_args"]["num_epochs"])
     net.train()
@@ -447,6 +483,7 @@ def main(args=None):
             log = {
                 "train/loss_mse": loss.item(),
                 "global_step": global_step,
+                "lr": optimizer.param_groups[0]["lr"],
             }
 
             if conf["optimization"]["clip_grad"]:
@@ -457,10 +494,6 @@ def main(args=None):
                 log["grad_norm"] = float(grad_norm)
 
             optimizer.step()
-
-            if scheduler[1] is not None and scheduler[1] != "ReduceLROnPlateau":
-                log["lr"] = scheduler[0].get_last_lr()[0]
-                scheduler[0].step()
 
             if conf["wandb"]:
                 wandb.log(log)
@@ -507,9 +540,23 @@ def main(args=None):
                     best_val_mse = val_mse
                     best_val_results = val_metrics
                     best_test_results = test_metrics
+                    best_epoch = epoch
+                    best_step = global_step
+
+                    if save_best_model and best_model_path is not None:
+                        save_best_model_checkpoint(
+                            model=net,
+                            path=best_model_path,
+                            epoch=epoch,
+                            global_step=global_step,
+                            best_val_results=best_val_results,
+                            best_test_results=best_test_results,
+                            conf=conf,
+                        )
+                        print(f"Saved best model to: {best_model_path}")
 
                 if conf["wandb"]:
-                    wandb.log({
+                    wandb_log = {
                         "epoch": epoch,
                         "global_step": global_step,
 
@@ -521,12 +568,19 @@ def main(args=None):
 
                         "test/avg_mse": float(test_metrics["avg_mse"]),
                         "test/avg_relative_l2": float(test_metrics["avg_relative_l2"]),
+                    }
 
-                        "val/best_mse": float(best_val_results["avg_mse"]),
-                        "val/best_relative_l2": float(best_val_results["avg_relative_l2"]),
-                        "test/best_at_best_val_mse": float(best_test_results["avg_mse"]),
-                        "test/best_at_best_val_relative_l2": float(best_test_results["avg_relative_l2"]),
-                    })
+                    if best_val_results is not None:
+                        wandb_log.update({
+                            "val/best_mse": float(best_val_results["avg_mse"]),
+                            "val/best_relative_l2": float(best_val_results["avg_relative_l2"]),
+                            "test/best_at_best_val_mse": float(best_test_results["avg_mse"]),
+                            "test/best_at_best_val_relative_l2": float(best_test_results["avg_relative_l2"]),
+                            "best/epoch": best_epoch,
+                            "best/global_step": best_step,
+                        })
+
+                    wandb.log(wandb_log)
 
                 print(
                     f"\n[Eval @ step {global_step}] "
@@ -543,10 +597,14 @@ def main(args=None):
     # ============================================================
     print("\n================ FINAL RESULTS ================")
     if best_val_results is not None:
+        print(f"Best epoch:             {best_epoch}")
+        print(f"Best global step:       {best_step}")
         print(f"Best val MSE:           {float(best_val_results['avg_mse']):.8f}")
         print(f"Best val Relative L2:   {float(best_val_results['avg_relative_l2']):.8f}")
         print(f"Test MSE @ best val:    {float(best_test_results['avg_mse']):.8f}")
         print(f"Test RelL2 @ best val:  {float(best_test_results['avg_relative_l2']):.8f}")
+        if save_best_model and best_model_path is not None:
+            print(f"Best model saved at:    {best_model_path}")
     print("===============================================")
 
 

@@ -2,8 +2,8 @@ from pathlib import Path
 import shutil
 
 # ====== SET THESE PATHS ======
-src_dir = Path("/home/intern/spygeorgoulas/thesis-metanets/scalegmn/data/navier_h_velocity_2x64_2k_rwi_pth_parallel_linearonly")
-dst_dir = Path("/home/intern/spygeorgoulas/thesis-metanets/scalegmn/data/navier_h_velocity_2x64_2k_rwi_pth_parallel_linearonly_splitted_all")
+src_dir = Path("/home/intern/spygeorgoulas/thesis-metanets/scalegmn/data/gram_ifw_4x64_300k_rwi_pth")
+dst_dir = Path("/home/intern/spygeorgoulas/thesis-metanets/scalegmn/data/gram_ifw_4x64_300k_rwi_pth_splitted_all")
 # =============================
 
 # get all .pth files in sorted order

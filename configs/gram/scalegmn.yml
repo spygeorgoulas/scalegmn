@@ -3,9 +3,9 @@ batch_size: 64
 
 data:
   dataset: ifw_velocity_inr
-  dataset_path: /path/to/input_velocity_in_inrs_split
-  source_npz_dir: /path/to/original_ifw_npz_or_split_root
-  input_layer_layout: [2, 64, 64, 2]
+  dataset_path: /home/intern/spygeorgoulas/thesis-metanets/scalegmn/data/gram_ifw_4x64_300k_rwi_pth_splitted
+  source_npz_dir: /home/intern/spygeorgoulas/thesis-metanets/neural-fields-3d/data/ifw
+  layer_layout: [4, 64, 64, 64, 64, 3]
   return_path: true
   node_pos_embed: &node_pos_embed True
   edge_pos_embed: &edge_pos_embed False
@@ -105,10 +105,10 @@ optimization:
 num_workers: 4
 log_n_imgs: 0
 save_best_model: true
-best_model_path: /home/intern/spygeorgoulas/thesis-metanets/scalegmn/checkpoints/best_scalegmn_navier_direct_prediction.pt
+best_model_path: /home/intern/spygeorgoulas/thesis-metanets/scalegmn/checkpoints/best_scalegmn_gram_iclr.pt
 
 wandb: true
 wandb_args:
-  project: weight_space_neural_operator_physics
+  project: iclr_gram_2026
   entity: mscai-spygeorgoulas
-  name: navier-geometry-to-velocity-direct
+  #name: gram_ifw

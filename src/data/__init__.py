@@ -5,6 +5,7 @@ from .cifar_inr_dataset import CifarINRDataset
 
 # spygeo
 from ._3d_inr_dataset import Labeled3DINRDataset
+from .ifw_velocity_inr import IFWVelocityINRDataset
 
 
 def dataset(dataset_config, **kwargs):
@@ -15,6 +16,7 @@ def dataset(dataset_config, **kwargs):
         'cifar10': NFNZooDataset,
         'svhn': NFNZooDataset,
         'mnist_inr_edit': MNISTINRImageDataset,
-        'labeled_3d_inr': Labeled3DINRDataset #edit
+        'labeled_3d_inr': Labeled3DINRDataset, #edit
+        'ifw_velocity_inr': IFWVelocityINRDataset, #edit
     }
     return _map[dataset_config["dataset"]](**dataset_config, **kwargs)
