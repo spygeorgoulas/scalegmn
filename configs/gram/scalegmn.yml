@@ -18,10 +18,10 @@ inr_model:
 train_args:
   seed: 0
   num_epochs: 300000
-  eval_every: 500
+  eval_every: 1000
   #val_acc_threshold: 0.1
   #loss: mse
-  train_query_batch_size:: 30000
+  train_query_batch_size: 10000
   eval_chunk_size: 16384
   train_eval_num_batches: 20
 
@@ -109,7 +109,7 @@ num_workers: 4
 #log_n_imgs: 0
 #save_best_model: true
 # best_model_path: /home/intern/spygeorgoulas/thesis-metanets/scalegmn/checkpoints/best_scalegmn_gram_iclr.pt
-output_dir: /home/intern/spygeorgoulas/thesis-metanets/scalegmn/outputs/gram_velocity_scalegmn_run1
+output_dir: /home/intern/spygeorgoulas/thesis-metanets/scalegmn/outputs/gram_velocity_scalegmn_run2
 
 wandb: true
 wandb_args:

@@ -1,13 +1,8 @@
 #!/usr/bin/env python3
-'''
+"""
 python /home/intern/spygeorgoulas/thesis-metanets/scalegmn/scalegmn_inclr_2026_gram.py \
   --conf /home/intern/spygeorgoulas/thesis-metanets/scalegmn/configs/gram/scalegmn.yml
-'''
-#!/usr/bin/env python3
-'''
-python /home/intern/spygeorgoulas/thesis-metanets/scalegmn/scalegmn_inclr_2026_gram.py \
-  --conf /home/intern/spygeorgoulas/thesis-metanets/scalegmn/configs/gram/scalegmn.yml
-'''
+"""
 
 import os
 import json
@@ -48,6 +43,19 @@ def residual_param_update(weights, biases, delta_weights, delta_biases):
 
 def relative_l2(pred: torch.Tensor, target: torch.Tensor, eps: float = 1e-8) -> torch.Tensor:
     return torch.norm(pred - target) / (torch.norm(target) + eps)
+
+
+def challenge_metric(pred: torch.Tensor, target: torch.Tensor) -> torch.Tensor:
+    """
+    Hint-based GRaM metric.
+
+    Original hint:
+        metric = (velocity_out - ground_truth).norm(dim=3).mean(dim=(1, 2))
+
+    Here pred and target are per-sample tensors of shape (M, 3), where M = T * N.
+    So this becomes mean vector L2 error over all spacetime query points.
+    """
+    return (pred - target).norm(dim=-1).mean()
 
 
 def get_output_dir(conf: Dict[str, Any]) -> Path:
@@ -344,8 +352,10 @@ def compute_train_field_loss(
 ) -> Tuple[torch.Tensor, Dict[str, float]]:
     """
     Training loss over velocity_out using sampled query points per sample.
+    We optimize only MSE, but also compute the challenge metric for logging.
     """
-    per_sample_losses = []
+    per_sample_mse_losses = []
+    per_sample_hint_metrics = []
 
     for bi, inr_path in enumerate(paths):
         npz_path = infer_npz_path_from_inr_path(inr_path, target_npz_dir)
@@ -365,13 +375,19 @@ def compute_train_field_loss(
         sw, sb = graph_params_to_siren_params(sw, sb)
 
         pred_out = batched_siren_forward(coords_out, sw, sb, w0).squeeze(0)
-        loss = F.mse_loss(pred_out, target_out)
-        per_sample_losses.append(loss)
 
-    loss = torch.stack(per_sample_losses).mean()
+        mse_loss = F.mse_loss(pred_out, target_out)
+        hint_val = challenge_metric(pred_out, target_out)
+
+        per_sample_mse_losses.append(mse_loss)
+        per_sample_hint_metrics.append(hint_val)
+
+    loss = torch.stack(per_sample_mse_losses).mean()
+    avg_hint = torch.stack(per_sample_hint_metrics).mean()
 
     return loss, {
         "train_field_mse": float(loss.detach().item()),
+        "train_field_challenge_metric": float(avg_hint.detach().item()),
     }
 
 
@@ -393,6 +409,7 @@ def evaluate(
 
     mse_list = []
     rel_l2_list = []
+    challenge_metric_list = []
 
     for i, batch in enumerate(loader):
         if num_batches is not None and i >= num_batches:
@@ -432,9 +449,11 @@ def evaluate(
 
             mse_i = F.mse_loss(pred_out, target_out).item()
             rel_l2_i = relative_l2(pred_out, target_out).item()
+            challenge_i = challenge_metric(pred_out, target_out).item()
 
             mse_list.append(mse_i)
             rel_l2_list.append(rel_l2_i)
+            challenge_metric_list.append(challenge_i)
 
     model.train()
 
@@ -442,6 +461,7 @@ def evaluate(
         return {
             "avg_mse": float("nan"),
             "avg_rel_l2": float("nan"),
+            "avg_challenge_metric": float("nan"),
             "num_samples": 0,
         }
 
@@ -450,6 +470,8 @@ def evaluate(
         "std_mse": float(np.std(mse_list)),
         "avg_rel_l2": float(np.mean(rel_l2_list)),
         "std_rel_l2": float(np.std(rel_l2_list)),
+        "avg_challenge_metric": float(np.mean(challenge_metric_list)),
+        "std_challenge_metric": float(np.std(challenge_metric_list)),
         "num_samples": int(len(mse_list)),
     }
 
@@ -522,8 +544,6 @@ def main(args=None):
     equiv_on_hidden = mask_hidden(conf)
     get_first_layer_mask = mask_input(conf)
 
-    # The custom IFW dataset should return the path manually from __getitem__,
-    # so return_path does not need to be True for BaseDataset logic.
     conf["data"]["return_path"] = False
 
     train_set = dataset(
@@ -625,11 +645,12 @@ def main(args=None):
     clip_grad = conf["optimization"].get("clip_grad", False)
     clip_grad_max_norm = conf["optimization"].get("clip_grad_max_norm", 1.0)
 
-    best_val_rel_l2 = float("inf")
+    best_val_challenge_metric = float("inf")
     best_val_results = None
     best_test_results = None
     global_step = 0
-    test_rel_l2 = -1.0
+    current_test_rel_l2 = float("nan")
+    current_test_challenge_metric = float("nan")
 
     best_ckpt_path = output_dir / "best_model.pt"
     best_metrics_path = output_dir / "best_metrics.json"
@@ -668,8 +689,7 @@ def main(args=None):
 
             log = {
                 "train/loss": float(loss.item()),
-                "train/field_mse": loss_dict["train_field_mse"],
-                "global_step": global_step,
+                "train/challenge_metric_sampled": loss_dict["train_field_challenge_metric"],
                 "epoch": epoch,
             }
 
@@ -678,26 +698,38 @@ def main(args=None):
                     list(filter(lambda p: p.requires_grad, net.parameters())),
                     clip_grad_max_norm
                 )
-                log["grad_norm"] = float(grad_norm)
+                log["train/grad_norm"] = float(grad_norm)
 
             optimizer.step()
 
             if scheduler is not None and scheduler_name != "ReduceLROnPlateau":
                 scheduler.step()
-                log["lr"] = float(scheduler.get_last_lr()[0])
+                log["train/lr"] = float(scheduler.get_last_lr()[0])
             else:
-                log["lr"] = float(optimizer.param_groups[0]["lr"])
+                log["train/lr"] = float(optimizer.param_groups[0]["lr"])
 
             if conf.get("wandb", False):
-                wandb.log(log)
+                wandb.log(log, step=global_step)
 
             epoch_iter.set_description(
-                f"[{epoch} {i+1}] train_mse={loss.item():.6f} best_val_relL2={best_val_rel_l2:.6f} test_relL2={test_rel_l2:.6f}"
+                f"[{epoch} {i+1}] train_mse={loss.item():.6f} "
+                f"best_val_hint={best_val_challenge_metric:.6f} "
+                f"test_hint={current_test_challenge_metric:.6f}"
             )
 
             global_step += 1
 
             if (global_step % eval_every) == 0:
+                train_results = evaluate(
+                    model=net,
+                    loader=train_loader,
+                    device=device,
+                    target_npz_dir=target_npz_dir,
+                    w0=inr_w0,
+                    eval_chunk_size=eval_chunk_size,
+                    num_batches=train_eval_num_batches,
+                )
+
                 val_results = evaluate(
                     model=net,
                     loader=val_loader,
@@ -718,26 +750,17 @@ def main(args=None):
                     num_batches=None,
                 )
 
-                train_results = evaluate(
-                    model=net,
-                    loader=train_loader,
-                    device=device,
-                    target_npz_dir=target_npz_dir,
-                    w0=inr_w0,
-                    eval_chunk_size=eval_chunk_size,
-                    num_batches=train_eval_num_batches,
-                )
-
-                val_rel_l2 = val_results["avg_rel_l2"]
-                test_rel_l2 = test_results["avg_rel_l2"]
+                val_challenge_metric = val_results["avg_challenge_metric"]
+                current_test_rel_l2 = test_results["avg_rel_l2"]
+                current_test_challenge_metric = test_results["avg_challenge_metric"]
 
                 if scheduler is not None and scheduler_name == "ReduceLROnPlateau":
-                    scheduler.step(val_rel_l2)
+                    scheduler.step(val_challenge_metric)
 
-                is_best = val_rel_l2 < best_val_rel_l2
+                is_best = val_challenge_metric < best_val_challenge_metric
 
                 if is_best:
-                    best_val_rel_l2 = val_rel_l2
+                    best_val_challenge_metric = val_challenge_metric
                     best_val_results = val_results
                     best_test_results = test_results
 
@@ -746,7 +769,7 @@ def main(args=None):
                         "global_step": global_step,
                         "model_state_dict": net.state_dict(),
                         "optimizer_state_dict": optimizer.state_dict(),
-                        "best_val_rel_l2": best_val_rel_l2,
+                        "best_val_challenge_metric": best_val_challenge_metric,
                         "conf": conf,
                     }
                     torch.save(ckpt, best_ckpt_path)
@@ -762,42 +785,63 @@ def main(args=None):
 
                 if conf.get("wandb", False):
                     eval_log = {
-                        "train_eval/avg_mse": train_results["avg_mse"],
-                        "train_eval/avg_rel_l2": train_results["avg_rel_l2"],
-                        "val/avg_mse": val_results["avg_mse"],
-                        "val/avg_rel_l2": val_results["avg_rel_l2"],
-                        "val/std_mse": val_results["std_mse"],
-                        "val/std_rel_l2": val_results["std_rel_l2"],
-                        "test/avg_mse": test_results["avg_mse"],
-                        "test/avg_rel_l2": test_results["avg_rel_l2"],
-                        "test/std_mse": test_results["std_mse"],
-                        "test/std_rel_l2": test_results["std_rel_l2"],
-                        "best/val_rel_l2": best_val_rel_l2,
+                        "train_eval/mse": train_results["avg_mse"],
+                        "train_eval/rel_l2": train_results["avg_rel_l2"],
+                        "train_eval/challenge_metric": train_results["avg_challenge_metric"],
+
+                        "val/mse": val_results["avg_mse"],
+                        "val/rel_l2": val_results["avg_rel_l2"],
+                        "val/challenge_metric": val_results["avg_challenge_metric"],
+
+                        "test/mse": test_results["avg_mse"],
+                        "test/rel_l2": test_results["avg_rel_l2"],
+                        "test/challenge_metric": test_results["avg_challenge_metric"],
+
+                        "overfit_gap/mse": val_results["avg_mse"] - train_results["avg_mse"],
+                        "overfit_gap/rel_l2": val_results["avg_rel_l2"] - train_results["avg_rel_l2"],
+                        "overfit_gap/challenge_metric": (
+                            val_results["avg_challenge_metric"] - train_results["avg_challenge_metric"]
+                        ),
+
+                        "best/val_challenge_metric": best_val_challenge_metric,
+                        "best/val_rel_l2": best_val_results["avg_rel_l2"] if best_val_results is not None else None,
                         "best/val_mse": best_val_results["avg_mse"] if best_val_results is not None else None,
-                        "best/test_rel_l2": best_test_results["avg_rel_l2"] if best_test_results is not None else None,
-                        "best/test_mse": best_test_results["avg_mse"] if best_test_results is not None else None,
-                        "epoch": epoch,
-                        "global_step": global_step,
+
+                        "best/test_challenge_metric": (
+                            best_test_results["avg_challenge_metric"] if best_test_results is not None else None
+                        ),
+                        "best/test_rel_l2": (
+                            best_test_results["avg_rel_l2"] if best_test_results is not None else None
+                        ),
+                        "best/test_mse": (
+                            best_test_results["avg_mse"] if best_test_results is not None else None
+                        ),
+
                         "is_best": int(is_best),
+                        "epoch": epoch,
                     }
-                    wandb.log(eval_log)
+                    wandb.log(eval_log, step=global_step)
 
     print("\n====================== FINAL SUMMARY ======================")
-    print(f"Best checkpoint      : {best_ckpt_path}")
-    print(f"Best metrics json    : {best_metrics_path}")
-    print(f"Best val Relative L2 : {best_val_rel_l2:.8f}")
+    print(f"Best checkpoint                : {best_ckpt_path}")
+    print(f"Best metrics json              : {best_metrics_path}")
+    print(f"Best val Challenge Metric      : {best_val_challenge_metric:.8f}")
     if best_val_results is not None:
-        print(f"Best val MSE         : {best_val_results['avg_mse']:.8f}")
+        print(f"Best val Relative L2           : {best_val_results['avg_rel_l2']:.8f}")
+        print(f"Best val MSE                   : {best_val_results['avg_mse']:.8f}")
     if best_test_results is not None:
-        print(f"Best test RelativeL2 : {best_test_results['avg_rel_l2']:.8f}")
-        print(f"Best test MSE        : {best_test_results['avg_mse']:.8f}")
+        print(f"Best test Challenge Metric     : {best_test_results['avg_challenge_metric']:.8f}")
+        print(f"Best test Relative L2          : {best_test_results['avg_rel_l2']:.8f}")
+        print(f"Best test MSE                  : {best_test_results['avg_mse']:.8f}")
     print("===========================================================")
 
     if conf.get("wandb", False):
-        wandb.summary["best_val_relative_l2"] = best_val_rel_l2
+        wandb.summary["best_val_challenge_metric"] = best_val_challenge_metric
         if best_val_results is not None:
+            wandb.summary["best_val_relative_l2"] = best_val_results["avg_rel_l2"]
             wandb.summary["best_val_mse"] = best_val_results["avg_mse"]
         if best_test_results is not None:
+            wandb.summary["best_test_challenge_metric"] = best_test_results["avg_challenge_metric"]
             wandb.summary["best_test_relative_l2"] = best_test_results["avg_rel_l2"]
             wandb.summary["best_test_mse"] = best_test_results["avg_mse"]
         wandb.finish()

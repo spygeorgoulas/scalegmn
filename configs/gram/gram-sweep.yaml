@@ -1,5 +1,5 @@
 
-# WANDB_AGENT_MAX_INITIAL_FAILURES=1000 wandb agent mscai-spygeorgoulas/gram_velocity_inrs/8b6ss4ue
+# WANDB_AGENT_DISABLE_FLAPPING=true WANDB_AGENT_MAX_INITIAL_FAILURES=9000 wandb agent mscai-spygeorgoulas/iclr_gram_2026/hw8z97qz
 
 program: /home/intern/spygeorgoulas/thesis-metanets/scalegmn/scalegmn_inclr_2026_gram.py
 method: random
@@ -24,16 +24,22 @@ parameters:
 
   scalegmn_args.d_hid:
     values:
-      - 16
+      #- 16
       - 32
       - 64
       - 128
+  
+  scalegmn_args.direction:
+    values:
+      - forward
+      - bidirectional
 
   scalegmn_args.num_layers:
     values:
-      - 3
+      #- 3
       - 4
       - 6
+      - 8
       - 10
 
   scalegmn_args.gnn_args.dropout:
