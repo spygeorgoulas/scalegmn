@@ -1,33 +1,35 @@
 
-batch_size: 64
+batch_size: 1
 
 data:
   dataset: ifw_velocity_inr
   dataset_path: /home/intern/spygeorgoulas/thesis-metanets/scalegmn/data/gram_ifw_4x64_300k_rwi_pth_splitted
-  source_npz_dir: /home/intern/spygeorgoulas/thesis-metanets/neural-fields-3d/data/ifw
+  target_npz_dir: /home/intern/spygeorgoulas/thesis-metanets/neural-fields-3d/data/ifw
   layer_layout: [4, 64, 64, 64, 64, 3]
-  return_path: true
+  return_path: false
   node_pos_embed: &node_pos_embed True
   edge_pos_embed: &edge_pos_embed False
+  #split_path: null
+  #image_size: [1, 1]
 
 inr_model:
   w0: 80.0
 
 train_args:
   seed: 0
-  num_epochs: 30000
+  num_epochs: 300000
   eval_every: 500
-  val_acc_threshold: 0.1
-  loss: mse
-  num_query_points: 10000
-  query_eval_chunk_size: 16384
+  #val_acc_threshold: 0.1
+  #loss: mse
+  train_query_batch_size:: 30000
+  eval_chunk_size: 16384
   train_eval_num_batches: 20
 
 scalegmn_args:
   d_in_v: &d_in_v 1  # initial dimension of input nn bias
   d_in_e: &d_in_e 1  # initial dimension of input nn weights
-  d_hid: &d_hid 128  # hidden dimension
-  num_layers: 4 # number of gnn layers to apply
+  d_hid: &d_hid 32  # hidden dimension
+  num_layers: 2 # number of gnn layers to apply
   direction: bidirectional #forward
   equivariant: True
   symmetry: sign  # symmetry
@@ -101,11 +103,13 @@ optimization:
   optimizer_args:
     lr: 0.001
     weight_decay: 0.001
+  scheduler_args: {}
 
 num_workers: 4
-log_n_imgs: 0
-save_best_model: true
-best_model_path: /home/intern/spygeorgoulas/thesis-metanets/scalegmn/checkpoints/best_scalegmn_gram_iclr.pt
+#log_n_imgs: 0
+#save_best_model: true
+# best_model_path: /home/intern/spygeorgoulas/thesis-metanets/scalegmn/checkpoints/best_scalegmn_gram_iclr.pt
+output_dir: /home/intern/spygeorgoulas/thesis-metanets/scalegmn/outputs/gram_velocity_scalegmn_run1
 
 wandb: true
 wandb_args:

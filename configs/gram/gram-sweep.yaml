@@ -1,11 +1,11 @@
 
-# WANDB_AGENT_MAX_INITIAL_FAILURES=1000 wandb agent mscai-spygeorgoulas/iclr_gram_2026/g5cgh774
+# WANDB_AGENT_MAX_INITIAL_FAILURES=1000 wandb agent mscai-spygeorgoulas/gram_velocity_inrs/8b6ss4ue
 
-program: /home/intern/spygeorgoulas/thesis-metanets/scalegmn/scalegmn_neural_operator_gram_iclr_2026.py
+program: /home/intern/spygeorgoulas/thesis-metanets/scalegmn/scalegmn_inclr_2026_gram.py
 method: random
 
 metric:
-  name: val/avg_relative_l2
+  name: val/avg_rel_l2
   goal: minimize
 
 parameters:
