@@ -4,6 +4,16 @@ python /home/intern/spygeorgoulas/thesis-metanets/scalegmn/scalegmn_inclr_2026_g
   --conf /home/intern/spygeorgoulas/thesis-metanets/scalegmn/configs/gram/scalegmn.yml
 """
 
+'''
+===== Velocity Statistics =====
+Files processed : 810
+Mean velocity : 37.756039
+Std velocity : 19.710636
+Min velocity : 0.000000
+Max velocity : 194.266403
+================================
+'''
+
 import os
 import json
 import yaml
