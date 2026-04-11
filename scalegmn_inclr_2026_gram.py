@@ -228,7 +228,6 @@ def unpack_batch(batch):
         if len(batch) >= 2:
             params, w_b = batch[0], batch[1]
 
-        # Try explicit extra tuple entries first
         if len(batch) >= 3:
             for item in batch[2:]:
                 extracted = _flatten_possible_paths(item)
@@ -242,7 +241,6 @@ def unpack_batch(batch):
             "Please adapt unpack_batch() to your exact IFWVelocityINRDataset return format."
         )
 
-    # Fallbacks from attributes on batch / params / w_b
     if paths is None:
         for obj in [batch, params, w_b]:
             for attr in ["path", "paths", "file_path", "file_paths", "rel_path", "rel_paths"]:
@@ -378,9 +376,12 @@ def compute_train_field_loss(
     target_npz_dir: Path,
     w0: float,
     device: torch.device,
+    eval_chunk_size: int,
 ) -> Tuple[torch.Tensor, Dict[str, float]]:
     """
-    Training loss over full velocity_out field for each sample.
+    Training loss over full velocity_out field for each sample, computed in chunks
+    so gradients are preserved without loading the whole field into memory at once.
+
     We optimize only MSE, but also compute the challenge metric for logging.
     """
     per_sample_mse_losses = []
@@ -388,19 +389,38 @@ def compute_train_field_loss(
 
     for bi, inr_path in enumerate(paths):
         npz_path = infer_npz_path_from_inr_path(inr_path, target_npz_dir)
-        coords_out, target_out = load_velocity_out_npz(npz_path)
-
-        coords_out = coords_out.to(device, non_blocking=True).unsqueeze(0)  # (1, M, 4)
-        target_out = target_out.to(device, non_blocking=True)               # (M, 3)
+        coords_out, target_out = load_velocity_out_npz(npz_path)  # CPU tensors
 
         sw = [w[bi:bi + 1] for w in new_weights]
         sb = [b[bi:bi + 1] for b in new_biases]
         sw, sb = graph_params_to_siren_params(sw, sb)
 
-        pred_out = batched_siren_forward(coords_out, sw, sb, w0).squeeze(0)
+        n_total = coords_out.shape[0]
+        out_dim = target_out.shape[1]
 
-        mse_loss = F.mse_loss(pred_out, target_out)
-        hint_val = challenge_metric(pred_out, target_out)
+        mse_num = None
+        hint_num = None
+
+        for start in range(0, n_total, eval_chunk_size):
+            end = min(start + eval_chunk_size, n_total)
+
+            coords_chunk = coords_out[start:end].to(device, non_blocking=True).unsqueeze(0)  # (1, m, 4)
+            target_chunk = target_out[start:end].to(device, non_blocking=True)               # (m, 3)
+
+            pred_chunk = batched_siren_forward(coords_chunk, sw, sb, w0).squeeze(0)          # (m, 3)
+
+            sq_err_sum = ((pred_chunk - target_chunk) ** 2).sum()
+            vec_l2_sum = (pred_chunk - target_chunk).norm(dim=-1).sum()
+
+            if mse_num is None:
+                mse_num = sq_err_sum
+                hint_num = vec_l2_sum
+            else:
+                mse_num = mse_num + sq_err_sum
+                hint_num = hint_num + vec_l2_sum
+
+        mse_loss = mse_num / (n_total * out_dim)
+        hint_val = hint_num / n_total
 
         per_sample_mse_losses.append(mse_loss)
         per_sample_hint_metrics.append(hint_val)
@@ -704,6 +724,7 @@ def main(args=None):
                 target_npz_dir=target_npz_dir,
                 w0=inr_w0,
                 device=device,
+                eval_chunk_size=eval_chunk_size,
             )
 
             loss.backward()

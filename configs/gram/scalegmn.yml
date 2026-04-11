@@ -6,7 +6,7 @@ data:
   dataset_path: /home/intern/spygeorgoulas/thesis-metanets/scalegmn/data/gram_ifw_4x64_300k_rwi_pth_splitted
   target_npz_dir: /home/intern/spygeorgoulas/thesis-metanets/neural-fields-3d/data/ifw
   layer_layout: [4, 64, 64, 64, 64, 3]
-  return_path: false
+  return_path: true #becareful
   node_pos_embed: &node_pos_embed True
   edge_pos_embed: &edge_pos_embed False
   #split_path: null
@@ -22,7 +22,7 @@ train_args:
   #val_acc_threshold: 0.1
   #loss: mse
   #train_query_batch_size: 10000
-  eval_chunk_size: 16384
+  eval_chunk_size: 4096
   train_eval_num_batches: 20
 
 scalegmn_args:
