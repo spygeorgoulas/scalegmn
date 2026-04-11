@@ -4,6 +4,7 @@ python /home/intern/spygeorgoulas/thesis-metanets/scalegmn/scalegmn_inclr_2026_g
   --conf /home/intern/spygeorgoulas/thesis-metanets/scalegmn/configs/gram/scalegmn.yml
 """
 
+
 import os
 import json
 import yaml
@@ -106,31 +107,6 @@ def save_json(path: Path, payload: Dict[str, Any]) -> None:
         json.dump(payload, f, indent=2)
 
 
-def _flatten_possible_paths(obj) -> List[str]:
-    """
-    Robustly extract path strings from nested structures.
-    """
-    out: List[str] = []
-
-    if obj is None:
-        return out
-
-    if isinstance(obj, (str, Path)):
-        return [str(obj)]
-
-    if isinstance(obj, dict):
-        for v in obj.values():
-            out.extend(_flatten_possible_paths(v))
-        return out
-
-    if isinstance(obj, (list, tuple)):
-        for item in obj:
-            out.extend(_flatten_possible_paths(item))
-        return out
-
-    return out
-
-
 def infer_npz_path_from_inr_path(inr_path: str, target_npz_dir: Path) -> Path:
     """
     Supports:
@@ -177,9 +153,9 @@ def load_velocity_out_npz(npz_path: Path) -> Tuple[torch.Tensor, torch.Tensor]:
     """
     data = np.load(npz_path)
 
-    pos = data["pos"].astype(np.float32)               # (N, 3)
-    t = data["t"].astype(np.float32)                   # (10,)
-    vel_out = data["velocity_out"].astype(np.float32)  # (5, N, 3)
+    pos = data["pos"].astype(np.float32)              # (N, 3)
+    t = data["t"].astype(np.float32)                  # (10,)
+    vel_out = data["velocity_out"].astype(np.float32) # (5, N, 3)
 
     n_times = vel_out.shape[0]
     n_points = pos.shape[0]
@@ -216,25 +192,22 @@ def unpack_batch(batch):
     if isinstance(batch, dict):
         params = batch.get("params", batch.get("graph", None))
         w_b = batch.get("w_b", batch.get("weights_biases", None))
-
-        for key in ["path", "paths", "file_path", "file_paths", "rel_path", "rel_paths"]:
-            if key in batch:
-                extracted = _flatten_possible_paths(batch[key])
-                if extracted:
-                    paths = extracted
-                    break
+        paths = batch.get("path", batch.get("paths", None))
 
     elif isinstance(batch, (list, tuple)):
-        if len(batch) >= 2:
-            params, w_b = batch[0], batch[1]
-
-        # Try explicit extra tuple entries first
-        if len(batch) >= 3:
-            for item in batch[2:]:
-                extracted = _flatten_possible_paths(item)
-                if extracted:
-                    paths = extracted
-                    break
+        if len(batch) == 4:
+            params, w_b, _, paths = batch
+        elif len(batch) == 3:
+            params, w_b, third = batch
+            if isinstance(third, (list, tuple)):
+                if len(third) > 0 and isinstance(third[0], str):
+                    paths = list(third)
+            elif isinstance(third, str):
+                paths = [third]
+            else:
+                paths = getattr(batch, "path", None)
+        elif len(batch) == 2:
+            params, w_b = batch
 
     if params is None or w_b is None:
         raise RuntimeError(
@@ -242,20 +215,18 @@ def unpack_batch(batch):
             "Please adapt unpack_batch() to your exact IFWVelocityINRDataset return format."
         )
 
-    # Fallbacks from attributes on batch / params / w_b
     if paths is None:
-        for obj in [batch, params, w_b]:
-            for attr in ["path", "paths", "file_path", "file_paths", "rel_path", "rel_paths"]:
-                if hasattr(obj, attr):
-                    extracted = _flatten_possible_paths(getattr(obj, attr))
-                    if extracted:
-                        paths = extracted
-                        break
-            if paths is not None:
-                break
+        if hasattr(batch, "path"):
+            paths = batch.path
+        elif hasattr(batch, "paths"):
+            paths = batch.paths
+        elif hasattr(params, "path"):
+            paths = params.path
+        elif hasattr(params, "paths"):
+            paths = params.paths
 
-    if paths is not None:
-        paths = [str(p) for p in paths]
+    if isinstance(paths, str):
+        paths = [paths]
 
     return params, w_b, paths
 
@@ -378,9 +349,10 @@ def compute_train_field_loss(
     target_npz_dir: Path,
     w0: float,
     device: torch.device,
+    train_query_batch_size: int,
 ) -> Tuple[torch.Tensor, Dict[str, float]]:
     """
-    Training loss over full velocity_out field for each sample.
+    Training loss over velocity_out using sampled query points per sample.
     We optimize only MSE, but also compute the challenge metric for logging.
     """
     per_sample_mse_losses = []
@@ -390,11 +362,17 @@ def compute_train_field_loss(
         npz_path = infer_npz_path_from_inr_path(inr_path, target_npz_dir)
         coords_out, target_out = load_velocity_out_npz(npz_path)
 
+        n_total = coords_out.shape[0]
+        if train_query_batch_size is not None and train_query_batch_size > 0 and train_query_batch_size < n_total:
+            idx = torch.randint(0, n_total, (train_query_batch_size,))
+            coords_out = coords_out[idx]
+            target_out = target_out[idx]
+
         coords_out = coords_out.to(device, non_blocking=True).unsqueeze(0)  # (1, M, 4)
         target_out = target_out.to(device, non_blocking=True)               # (M, 3)
 
-        sw = [w[bi:bi + 1] for w in new_weights]
-        sb = [b[bi:bi + 1] for b in new_biases]
+        sw = [w[bi:bi+1] for w in new_weights]
+        sb = [b[bi:bi+1] for b in new_biases]
         sw, sb = graph_params_to_siren_params(sw, sb)
 
         pred_out = batched_siren_forward(coords_out, sw, sb, w0).squeeze(0)
@@ -457,8 +435,8 @@ def evaluate(
             npz_path = infer_npz_path_from_inr_path(paths[bi], target_npz_dir)
             coords_out, target_out = load_velocity_out_npz(npz_path)
 
-            sw = [w[bi:bi + 1] for w in new_weights]
-            sb = [b[bi:bi + 1] for b in new_biases]
+            sw = [w[bi:bi+1] for w in new_weights]
+            sb = [b[bi:bi+1] for b in new_biases]
             sw, sb = graph_params_to_siren_params(sw, sb)
 
             pred_out = predict_full_field_chunked(
@@ -567,7 +545,7 @@ def main(args=None):
     equiv_on_hidden = mask_hidden(conf)
     get_first_layer_mask = mask_input(conf)
 
-    conf["data"]["return_path"] = True
+    conf["data"]["return_path"] = False
 
     train_set = dataset(
         conf["data"],
@@ -660,6 +638,7 @@ def main(args=None):
     # ------------------------------------------------------------------
     # Training settings
     # ------------------------------------------------------------------
+    train_query_batch_size = conf["train_args"].get("train_query_batch_size", 16384)
     eval_chunk_size = conf["train_args"].get("eval_chunk_size", 16384)
     eval_every = conf["train_args"]["eval_every"]
     num_epochs = conf["train_args"]["num_epochs"]
@@ -704,13 +683,14 @@ def main(args=None):
                 target_npz_dir=target_npz_dir,
                 w0=inr_w0,
                 device=device,
+                train_query_batch_size=train_query_batch_size,
             )
 
             loss.backward()
 
             log = {
                 "train/loss": float(loss.item()),
-                "train/challenge_metric_full_field": loss_dict["train_field_challenge_metric"],
+                "train/challenge_metric_sampled": loss_dict["train_field_challenge_metric"],
                 "epoch": epoch,
             }
 

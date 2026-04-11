@@ -21,7 +21,7 @@ train_args:
   eval_every: 1000
   #val_acc_threshold: 0.1
   #loss: mse
-  train_query_batch_size: 10000
+  #train_query_batch_size: 10000
   eval_chunk_size: 16384
   train_eval_num_batches: 20
 

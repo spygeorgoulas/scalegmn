@@ -1,22 +1,22 @@
 {
-  "epoch": 121,
-  "global_step": 5000,
+  "epoch": 463,
+  "global_step": 19000,
   "best_val_results": {
-    "avg_mse": 16.27007814645767,
-    "std_mse": 3.9689715693318424,
-    "avg_rel_l2": 0.16555597111582757,
-    "std_rel_l2": 0.026173845346062527,
-    "avg_challenge_metric": 4.554014402627945,
-    "std_challenge_metric": 0.6414131296374714,
+    "avg_mse": 16.28785833120346,
+    "std_mse": 3.9538469687651787,
+    "avg_rel_l2": 0.16565365344285965,
+    "std_rel_l2": 0.026089429935744285,
+    "avg_challenge_metric": 4.55537781715393,
+    "std_challenge_metric": 0.6383746740613929,
     "num_samples": 80
   },
   "best_test_results": {
-    "avg_mse": 16.05560890085557,
-    "std_mse": 4.234349680559803,
-    "avg_rel_l2": 0.16330875587813995,
-    "std_rel_l2": 0.025951022211413568,
-    "avg_challenge_metric": 4.442320571226232,
-    "std_challenge_metric": 0.7358601758100909,
+    "avg_mse": 16.08718734068029,
+    "std_mse": 4.2918771812767975,
+    "avg_rel_l2": 0.1634288347819272,
+    "std_rel_l2": 0.02602368479589525,
+    "avg_challenge_metric": 4.442436703513651,
+    "std_challenge_metric": 0.7403474280827514,
     "num_samples": 85
   },
   "checkpoint_path": "/home/intern/spygeorgoulas/thesis-metanets/scalegmn/outputs/gram_velocity_scalegmn_run2/best_model.pt"
