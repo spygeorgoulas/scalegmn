@@ -22,7 +22,7 @@ train_args:
   #val_acc_threshold: 0.1
   #loss: mse
   #train_query_batch_size: 10000
-  eval_chunk_size: 4096
+  eval_chunk_size: 2048 #4096
   train_eval_num_batches: 20
 
 scalegmn_args:
@@ -105,11 +105,11 @@ optimization:
     weight_decay: 0.001
   scheduler_args: {}
 
-num_workers: 4
+num_workers: 8
 #log_n_imgs: 0
 #save_best_model: true
 # best_model_path: /home/intern/spygeorgoulas/thesis-metanets/scalegmn/checkpoints/best_scalegmn_gram_iclr.pt
-output_dir: /home/intern/spygeorgoulas/thesis-metanets/scalegmn/outputs/gram_velocity_scalegmn_run2
+output_dir: /home/intern/spygeorgoulas/thesis-metanets/scalegmn/outputs/gram_velocity_scalegmn_run_jul_2026
 
 wandb: true
 wandb_args:

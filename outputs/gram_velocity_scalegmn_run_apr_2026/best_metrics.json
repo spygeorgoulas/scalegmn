@@ -1,0 +1,23 @@
+{
+  "epoch": 17,
+  "global_step": 11000,
+  "best_val_results": {
+    "avg_mse": 16.320323038101197,
+    "std_mse": 4.007859531064977,
+    "avg_rel_l2": 0.16579078696668148,
+    "std_rel_l2": 0.026363287956069164,
+    "avg_challenge_metric": 4.550185251235962,
+    "std_challenge_metric": 0.6414962946232637,
+    "num_samples": 80
+  },
+  "best_test_results": {
+    "avg_mse": 16.21392438551959,
+    "std_mse": 4.32138417584218,
+    "avg_rel_l2": 0.16407099374953438,
+    "std_rel_l2": 0.025930929425030447,
+    "avg_challenge_metric": 4.443012874266681,
+    "std_challenge_metric": 0.7349531271260107,
+    "num_samples": 85
+  },
+  "checkpoint_path": "/home/intern/spygeorgoulas/thesis-metanets/scalegmn/outputs/gram_velocity_scalegmn_run_apr_2026/best_model.pt"
+}

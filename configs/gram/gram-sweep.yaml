@@ -1,7 +1,10 @@
 
-# WANDB_AGENT_DISABLE_FLAPPING=true WANDB_AGENT_MAX_INITIAL_FAILURES=9000 wandb agent mscai-spygeorgoulas/iclr_gram_2026/6bxy0r48
+# WANDB_AGENT_DISABLE_FLAPPING=true WANDB_AGENT_MAX_INITIAL_FAILURES=1000 wandb agent mscai-spygeorgoulas/iclr_gram_2026/iqhbgbgg
 
-program: /home/intern/spygeorgoulas/thesis-metanets/scalegmn/scalegmn_inclr_2026_gram.py
+# july 2026 last run
+# WANDB_AGENT_DISABLE_FLAPPING=true WANDB_AGENT_MAX_INITIAL_FAILURES=1000 wandb agent mscai-spygeorgoulas/iclr_gram_2026/w230bxs5
+
+program: /home/intern/spygeorgoulas/thesis-metanets/scalegmn/scalegmn_iclr_2026_gram.py
 method: random
 
 metric:
@@ -15,19 +18,20 @@ parameters:
 
   batch_size:
     values:
+      #- 2
       #- 4
       #- 8
       - 16
-      - 32
-      - 64
+      #- 32
+      #- 64
       #- 128
 
   scalegmn_args.d_hid:
     values:
       #- 16
       - 32
-      - 64
-      - 128
+      #- 64
+      #- 128
   
   scalegmn_args.direction:
     values:
@@ -37,9 +41,9 @@ parameters:
   scalegmn_args.num_layers:
     values:
       #- 3
-      #- 4
-      - 6
-      - 8
+      - 4
+      #- 6
+      #- 8
       #- 10
 
   scalegmn_args.gnn_args.dropout:
@@ -52,8 +56,8 @@ parameters:
     values:
       #- 2e-4
       #- 5e-4
-      #- 1e-3
-      - 1e-4
+      - 1e-3
+      #- 1e-4
 
   optimization.optimizer_args.weight_decay:
     values:
