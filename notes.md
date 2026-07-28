@@ -1,3 +1,57 @@
-# Notes
+-
 
-## Experiments
+# exp scalegmn perm
+## scalegm
+python inr_classification.py --conf configs/_3d_inr_cls/scalegmn.yml --wandb True
+WANDB_AGENT_MAX_INITIAL_FAILURES=1000 wandb agent mscai-spygeorgoulas/_3d_inr_cls/qvbf5hua
+
+## nfn_1x128_1k_rwi_pth
+WANDB_AGENT_MAX_INITIAL_FAILURES=1000 wandb agent mscai-spygeorgoulas/_3d_inr_cls/z7epuzdx
+
+# exp scalegmn scale
+## nfn_1x128_1k_rwi_pth
+WANDB_AGENT_MAX_INITIAL_FAILURES=1000 wandb agent mscai-spygeorgoulas/_3d_inr_cls/gpu83cj9
+WANDB_AGENT_MAX_INITIAL_FAILURES=1000 wandb agent mscai-spygeorgoulas/_3d_inr_cls/ip9a6c4c
+WANDB_AGENT_MAX_INITIAL_FAILURES=1000 wandb agent mscai-spygeorgoulas/_3d_inr_cls/m0o5t2b7
+WANDB_AGENT_MAX_INITIAL_FAILURES=1000 wandb agent mscai-spygeorgoulas/_3d_inr_cls/mtsfyri6
+WANDB_AGENT_MAX_INITIAL_FAILURES=1000 wandb agent mscai-spygeorgoulas/_3d_inr_cls/t3w9m289
+WANDB_AGENT_MAX_INITIAL_FAILURES=1000 wandb agent mscai-spygeorgoulas/_3d_inr_cls/kt20th8l
+WANDB_AGENT_MAX_INITIAL_FAILURES=1000 wandb agent mscai-spygeorgoulas/_3d_inr_cls/sn73ovs5
+
+## papa_3x32_1k_swi_pth scale
+WANDB_AGENT_MAX_INITIAL_FAILURES=1000 wandb agent mscai-spygeorgoulas/_3d_inr_cls/umlpmc3i
+WANDB_AGENT_MAX_INITIAL_FAILURES=1000 wandb agent mscai-spygeorgoulas/_3d_inr_cls/wd3wqyne
+WANDB_AGENT_MAX_INITIAL_FAILURES=1000 wandb agent mscai-spygeorgoulas/_3d_inr_cls/wed7zi2l
+
+## papa_3x32_1k_swi_pth perm
+WANDB_AGENT_MAX_INITIAL_FAILURES=1000 wandb agent mscai-spygeorgoulas/_3d_inr_cls/7ao3uddx
+
+## papa_3x32_1k_rwi_pth perm-scale
+WANDB_AGENT_MAX_INITIAL_FAILURES=1000 wandb agent mscai-spygeorgoulas/_3d_inr_cls/8kts8dd
+WANDB_AGENT_MAX_INITIAL_FAILURES=1000 wandb agent mscai-spygeorgoulas/_3d_inr_cls/nkn4nmgf
+WANDB_AGENT_MAX_INITIAL_FAILURES=1000 wandb agent mscai-spygeorgoulas/_3d_inr_cls/y5h6d0lf
+WANDB_AGENT_MAX_INITIAL_FAILURES=1000 wandb agent mscai-spygeorgoulas/_3d_inr_cls/na250ult
+WANDB_AGENT_MAX_INITIAL_FAILURES=1000 wandb agent mscai-spygeorgoulas/_3d_inr_cls/jhzop9r4
+WANDB_AGENT_MAX_INITIAL_FAILURES=1000 wandb agent mscai-spygeorgoulas/_3d_inr_cls/zmean0qu
+WANDB_AGENT_MAX_INITIAL_FAILURES=1000 wandb agent mscai-spygeorgoulas/_3d_inr_cls/rxnbqc55
+WANDB_AGENT_MAX_INITIAL_FAILURES=1000 wandb agent mscai-spygeorgoulas/_3d_inr_cls/8eri7bzm
+WANDB_AGENT_MAX_INITIAL_FAILURES=1000 wandb agent mscai-spygeorgoulas/_3d_inr_cls/i6odsasf
+WANDB_AGENT_MAX_INITIAL_FAILURES=1000 wandb agent mscai-spygeorgoulas/_3d_inr_cls/ks6pf5j2
+WANDB_AGENT_MAX_INITIAL_FAILURES=1000 wandb agent mscai-spygeorgoulas/_3d_inr_cls/8w84cywo
+WANDB_AGENT_MAX_INITIAL_FAILURES=1000 wandb agent mscai-spygeorgoulas/_3d_inr_cls/u0eerhz9
+WANDB_AGENT_MAX_INITIAL_FAILURES=1000 wandb agent mscai-spygeorgoulas/_3d_inr_cls/f6kw77rf
+WANDB_AGENT_MAX_INITIAL_FAILURES=1000 wandb agent mscai-spygeorgoulas/_3d_inr_cls/7m2as5tu
+WANDB_AGENT_MAX_INITIAL_FAILURES=1000 wandb agent mscai-spygeorgoulas/_3d_inr_cls/8k9q214i
+WANDB_AGENT_MAX_INITIAL_FAILURES=1000 wandb agent mscai-spygeorgoulas/_3d_inr_cls/yknqibnw
+WANDB_AGENT_MAX_INITIAL_FAILURES=1000 wandb agent mscai-spygeorgoulas/_3d_inr_cls/vi1phfex
+WANDB_AGENT_MAX_INITIAL_FAILURES=1000 wandb agent mscai-spygeorgoulas/_3d_inr_cls/wve42yil
+WANDB_AGENT_MAX_INITIAL_FAILURES=1000 wandb agent mscai-spygeorgoulas/_3d_inr_cls/euwrvcdt
+WANDB_AGENT_MAX_INITIAL_FAILURES=1000 wandb agent mscai-spygeorgoulas/_3d_inr_cls/cjbjxvkh
+WANDB_AGENT_MAX_INITIAL_FAILURES=1000 wandb agent mscai-spygeorgoulas/_3d_inr_cls/lw97thj7
+WANDB_AGENT_MAX_INITIAL_FAILURES=1000 wandb agent mscai-spygeorgoulas/_3d_inr_cls/rdfh4nwv
+WANDB_AGENT_MAX_INITIAL_FAILURES=1000 wandb agent mscai-spygeorgoulas/_3d_inr_cls/azncppx8
+WANDB_AGENT_MAX_INITIAL_FAILURES=1000 wandb agent mscai-spygeorgoulas/_3d_inr_cls/modwt0w2
+WANDB_AGENT_MAX_INITIAL_FAILURES=1000 wandb agent mscai-spygeorgoulas/_3d_inr_cls/ypu8023m
+WANDB_AGENT_MAX_INITIAL_FAILURES=1000 wandb agent mscai-spygeorgoulas/_3d_inr_cls/gzf5x1ep
+WANDB_AGENT_MAX_INITIAL_FAILURES=1000 wandb agent mscai-spygeorgoulas/_3d_inr_cls/cnns467b
+WANDB_AGENT_MAX_INITIAL_FAILURES=1000 wandb agent mscai-spygeorgoulas/_3d_inr_cls/coavcc6e
